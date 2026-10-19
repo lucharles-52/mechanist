@@ -899,13 +899,15 @@ patient shows, not what a disease does."""
 
 WORKFLOW = """The team works in six stages, and every member thinks the same way: mechanistically, asking why something
 happens, why it does not happen in the comparator groups, and what the difference is.
-1. Pathology dossier: from the literature, focused by what the data's digest shows: the disease's defining histology
-   and clinical features; the cells, states, mediators and genes implicated; genetics; therapies and response; how it
-   differs from each comparator disease. Every item cites a literature search run here. Also novelty leads: what the
-   data show that the known pathology does not explain.
+1. Pathology dossier: from the literature, first the field's own account of the disease, then focused by what the
+   data's digest shows: the disease's defining histology and clinical features; the cells, states, mediators and
+   genes implicated; genetics; therapies and response, including what is in trial now; how it differs from each
+   comparator disease; and the established mechanisms single-cell RNA cannot measure. Every item cites a search run
+   here. Also novelty leads: what the data show that the known pathology does not explain.
 2. Do we see the pathology? Every dossier item checked in the data, per sample and against the comparators: expected
    and present; expected but absent (with the checks on why: capture, labelling, few cells, composition); unexpected
-   (odd composition, states or labels, each checked for contamination, composition and one dominant sample).
+   (odd composition, states or labels, each checked for contamination, composition and one dominant sample); and,
+   for what single-cell RNA cannot measure, only its trace, the rest stated as untested here, not absent.
 3. Candidates: several candidate mechanisms that could produce the pathology, from both the expected and the
    unexpected lists; each says which observations it explains and what would refute it.
 4. Chase: each candidate up the depth ladder, with the comparator question at every level.
@@ -926,14 +928,26 @@ positive evidence: a cell can respond without making more receptor. A raised rec
 not raised is not evidence against the step. Only a receptor absent from the receiving cells argues against it."""
 
 DOSSIER_SYSTEM = f"""You are the team's disease scholar. {WORKFLOW}
-Your job now is stage 1, the pathology dossier. Use literature_search (a few plain words: disease, cell types, genes,
-pathways; never sample names) and the other knowledge tools; read the data's digest only to focus your questions and
-to spot novelty. Each turn: call ONE tool, or give the dossier. You have at most {{steps}} tool calls.
+Your job now is stage 1, the pathology dossier: what the field already knows about this disease, whether or not
+this dataset could show it. Use literature_search (a few plain words: disease, cell types, genes, pathways; never
+sample names), trial_search and the other knowledge tools. Each turn: call ONE tool, or give the dossier. You have at
+most {{steps}} tool calls.
+Search in two phases. First, the field's own account, before the data's digest steers you: searches that name the
+disease and plain words only (pathogenesis, review, histopathology, mechanism, treatment) and none of the digest's
+genes or cells, and one trial_search for the disease. Read what comes back for the mechanisms the field holds
+established, including the ones it holds for other tissues, fluids or the blood. Then, second, use the digest to
+focus further searches and to spot novelty.
+Single-cell RNA from a biopsy sees transcripts in the cells that were captured. Some established mechanisms act
+where it cannot see: proteins made elsewhere or circulating, activity set by cleavage, binding or deposition rather
+than transcription, cells the method loses, microbes, systemic factors. List those under beyond_single_cell, each
+with why these data cannot measure it and what partial trace it could still leave here (a receptor or a producing
+cell that is captured), so the team can look for the trace and say the rest is untested rather than absent.
 Reply with ONE JSON object per turn: a tool call {{{{"purpose": str, "tool": str, "args": {{{{...}}}}}}}} or the
 dossier {{{{"answer": {{{{"defining_features": [item], "cells_states": [item], "mediators_genes": [item],
-"genetics": [item], "therapies": [item], "comparator_differences": [item], "novelty_leads": [{{{{"text": str,
-"finding_ids": [ids]}}}}]}}}}}}}}, where item = {{{{"text": str, "ids": [R ids of the searches it rests on]}}}}.
-Only what the searches returned; an item without a search id is dropped."""
+"genetics": [item], "therapies": [item], "comparator_differences": [item], "beyond_single_cell": [{{{{"text": str,
+"ids": [..], "why": str, "trace": str}}}}], "novelty_leads": [{{{{"text": str, "finding_ids": [ids]}}}}]}}}}}}}},
+where item = {{{{"text": str, "ids": [R ids of the searches it rests on]}}}}. Therapies include what is in trial now
+(cite the trial_search id). Only what the searches returned; an item without a search id is dropped."""
 
 DOSSIER_USER = """{context}
 
@@ -947,7 +961,8 @@ CHECK_PLAN_SYSTEM = f"""You plan stage 2 of a mechanistic investigation: do we s
 Turn the dossier into a few focused data threads, each one question an analyst answers with a handful of tool calls:
 whether the expected cells, states, mediators and genes are present (per sample, against the comparators), why an
 expected item is absent, and what is unexpected (composition, states, labels), each with contamination, composition
-and dominant-sample checks. Cover the dossier's novelty leads too.
+and dominant-sample checks. Cover the dossier's novelty leads too. For what the dossier lists as beyond single-cell,
+plan only a look for its trace (the receptor, the producing cell), never a test of the mechanism itself.
 Return JSON only: {{"threads": [{{"kind": "presence"|"function"|"artifact"|"specificity", "text": str, "cells": [..],
 "genes": [..], "hypothesis_ids": [], "parent_id": null, "why": str}}]}}"""
 
@@ -955,7 +970,9 @@ CHECK_SUMMARY_SYSTEM = """You summarise stage 2 of a mechanistic investigation (
 analysts' answers. Use only the answers shown; cite their question ids.
 Return JSON only: {"expected_present": [{"text": str, "question_ids": [ids]}], "expected_absent": [{"text": str,
 "why": str (what the checks showed), "question_ids": [ids]}], "unexpected": [{"text": str, "checks": str,
-"question_ids": [ids]}]}"""
+"question_ids": [ids]}], "beyond_single_cell": [{"text": str (the dossier's item), "trace": str (what the answers
+showed of its trace, or "not looked for"), "question_ids": [ids]}]}. Every beyond_single_cell item of the dossier
+appears there: these data cannot confirm or exclude it, and the summary says so."""
 
 GATE_SYSTEM = f"""You are the principal investigator (PI) of the team. {WORKFLOW}
 You did not do the analysis; you review the stage the team has just finished and keep pressing. Your standing
@@ -1190,7 +1207,9 @@ Tools (args as named):
 
 PHENOTYPE_SECTIONS = (("defining_features", "defining feature"), ("cells_states", "cells and states"),
                       ("mediators_genes", "mediator or gene"), ("genetics", "genetics"),
-                      ("therapies", "therapy response"), ("comparator_differences", "difference from comparators"))
+                      ("therapies", "therapy response"), ("comparator_differences", "difference from comparators"),
+                      ("beyond_single_cell", "known, beyond single-cell"))
+DOSSIER_SECTIONS = tuple(k for k, _ in PHENOTYPE_SECTIONS if k != "beyond_single_cell")
 
 
 def phenotype_items(d: dict) -> list[tuple[str, str, str]]:
@@ -1221,12 +1240,15 @@ def dossier_text(d: dict) -> str:
     for key, title in (("defining_features", "Defining features"), ("cells_states", "Cells and states"),
                        ("mediators_genes", "Mediators and genes"), ("genetics", "Genetics"),
                        ("therapies", "Therapies and response"), ("comparator_differences", ("Differences from "
-                       "comparators")), ("data_observations", "Observed in this dataset (findings, not literature)"),
+                       "comparators")), ("beyond_single_cell", "Known, beyond what single-cell RNA can measure"),
+                      ("data_observations", "Observed in this dataset (findings, not literature)"),
                       ("novelty_leads", "Novelty leads (data not explained by the known pathology)")):
         items = [it if isinstance(it, dict) else {"text": str(it)} for it in (d.get(key) or [])]
         if items:
             parts.append(f"{title}:\n" + "\n".join(
-                f"- {it.get('text', '')} [{', '.join(_idlist(it.get('ids') or it.get('finding_ids')))}]" for it in items))
+                f"- {it.get('text', '')} [{', '.join(_idlist(it.get('ids') or it.get('finding_ids')))}]"
+                + (f" (not measurable here: {it['why']}; trace to look for: {it.get('trace') or 'none'})"
+                   if it.get("why") else "") for it in items))
     return "\n".join(parts) or "(empty dossier)"
 
 
@@ -1242,11 +1264,12 @@ def check_text(c: dict) -> str:
         return "(no pathology check)"
     out = []
     for key, title in (("expected_present", "Expected and present"), ("expected_absent", "Expected but absent"),
-                       ("unexpected", "Unexpected")):
+                       ("unexpected", "Unexpected"), ("beyond_single_cell", "Known but not measurable here")):
         items = [it if isinstance(it, dict) else {"text": str(it)} for it in (c.get(key) or [])]
         out.append(f"{title}:\n" + ("\n".join(
             f"- {it.get('text', '')}" + (f" (why: {it['why']})" if it.get("why") else "")
             + (f" (checks: {it['checks']})" if it.get("checks") else "")
+            + (f" (trace: {it['trace']})" if it.get("trace") else "")
             + f" [{', '.join(_idlist(it.get('question_ids')))}]" for it in items) or "- (none)"))
     return "\n".join(out)
 
@@ -1270,9 +1293,9 @@ def summarize_check(llm: LoggedLLM, tag: str, dossier: dict, log: str) -> dict:
         if not isinstance(d, dict):
             raise TypeError("expected an object")
         return {k: [x for x in d.get(k) or [] if isinstance(x, dict)]
-                for k in ("expected_present", "expected_absent", "unexpected")}
+                for k in ("expected_present", "expected_absent", "unexpected", "beyond_single_cell")}
     return _ask(llm, tag, CHECK_SUMMARY_SYSTEM, user, parse) or {"expected_present": [], "expected_absent": [],
-                                                                  "unexpected": []}
+                                                                  "unexpected": [], "beyond_single_cell": []}
 
 
 def _int(x) -> int:

@@ -213,7 +213,7 @@ def sample_wide(up: dict[str, list[str]]) -> tuple[set[str], dict[str, int], int
 class Toolbox:
     def __init__(self, study: LoadedStudy, findings: list[Finding], cells: CellData | None = None,
                  kb: KnowledgeBase | None = None, literature: Literature | None = None, lab_tables: bool = True,
-                 primary: str | None = None, expression_loader: Callable | None = None, opentargets=None):
+                 primary: str | None = None, expression_loader: Callable | None = None, opentargets=None, trials=None):
         self.study = study
         self.ot = opentargets
         ds = study.dataset

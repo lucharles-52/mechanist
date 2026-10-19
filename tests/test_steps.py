@@ -3,6 +3,8 @@
 import json
 import types
 
+import pytest
+
 from mechanist import investigate as inv
 from mechanist.records import Hypothesis, Question, ToolCall
 from mechanist.runner import Runner
@@ -207,7 +209,10 @@ def test_index_patient_design_is_generic_and_accepted():
 
     from mechanist import agents
     from mechanist.runner import RunConfig
-    cfg = RunConfig.from_yaml(Path(__file__).parents[1] / "configs" / "p044_pg_claude.yaml")
+    path = Path(__file__).parents[1] / "configs" / "p044_pg_claude.yaml"
+    if not path.exists():  # study configs stay out of the repository
+        pytest.skip("needs the p044 study config")
+    cfg = RunConfig.from_yaml(path)
     assert cfg.design == "index_patient" and cfg.disease == "Patient"
     text = agents.INDEX_PATIENT.format(patient="Patient")
     assert '"Patient"' in text and "candidate diagnosis" in text
@@ -436,3 +441,42 @@ def test_sample_wide_genes_are_those_raised_in_most_lineages():
     wide, rose, k = sample_wide(up)
     assert wide == {"AMB"} and k == 3 and rose["AMB"] == 3  # 3 of 4 lineages; CCR10 stays a T-cell change
     assert sample_wide({"A": ["G"], "B": ["G"]})[0] == set()  # two lineages cannot tell sample-wide from shared
+
+
+def test_trial_search_keeps_trials_that_name_the_condition(tmp_path):
+    from mechanist.knowledge import Literature, Trials
+
+    def study(nct, title, conds, phase="PHASE2"):
+        return {"protocolSection": {"identificationModule": {"nctId": nct, "briefTitle": title},
+                                    "conditionsModule": {"conditions": conds},
+                                    "statusModule": {"overallStatus": "RECRUITING", "startDateStruct": {"date": "2026-01"}},
+                                    "designModule": {"phases": [phase]},
+                                    "armsInterventionsModule": {"interventions": [{"name": "drug x"}]}}}
+    body = {"studies": [study("NCT00000001", "Drug x in solid tumours", ["Neoplasms"]),
+                        study("NCT00000002", "Drug x in adults", ["Rare ulcer disease"])]}
+    urls = []
+    lit = Literature(tmp_path / "c", forbidden={"s1"}, log_path=tmp_path / "q.jsonl")
+    tr = Trials(lit, fetch=lambda u: urls.append(u) or body)
+    text, data = tr.search("rare ulcer disease")
+    assert [t["nct"] for t in data["trials"]] == ["NCT00000002"]  # the loose registry match is dropped
+    assert "NCT00000002 (PHASE2, recruiting" in text and "drug x" in text
+    tr.search("rare ulcer disease")
+    assert len(urls) == 1  # cached
+    with pytest.raises(Exception, match="study identifiers"):
+        tr.search("s1 ulcer")
+
+
+def test_dossier_lists_what_single_cell_cannot_measure_and_the_check_reports_it():
+    from mechanist import agents
+    d = {"mediators_genes": [{"text": "m", "ids": ["R5001"]}],
+         "beyond_single_cell": [{"text": "a circulating cascade made in another organ", "ids": ["R5002"],
+                                 "why": "the protein acts outside the captured cells", "trace": "its receptor on myeloid cells"}]}
+    txt = agents.dossier_text(d)
+    assert "Known, beyond what single-cell RNA can measure" in txt and "trace to look for: its receptor" in txt
+    items = agents.phenotype_items(d)
+    assert ("D02", "known, beyond single-cell", "a circulating cascade made in another organ") in items
+    assert "beyond_single_cell" not in agents.DOSSIER_SECTIONS
+    c = {"beyond_single_cell": [{"text": "a circulating cascade", "trace": "receptor raised", "question_ids": ["Q3"]}]}
+    assert "Known but not measurable here" in agents.check_text(c) and "(trace: receptor raised)" in agents.check_text(c)
+    for word in ("complement", "C3", "C5"):  # the prompt names no mechanism: the agents find them
+        assert word not in agents.DOSSIER_SYSTEM

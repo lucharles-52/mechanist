@@ -34,7 +34,7 @@ from mechanist import investigate as inv
 from mechanist.adapters import p033, skinpipe
 from mechanist.adapters.base import LoadedStudy, group_order, lineages_from_cells
 from mechanist.findings import digest_line
-from mechanist.knowledge import KB_DIR, KnowledgeBase, Literature, OpenTargets, cited_pmids
+from mechanist.knowledge import KB_DIR, KnowledgeBase, Literature, OpenTargets, Trials, cited_pmids
 from mechanist.llm import LLMConfig, LoggedLLM, make_backend
 from mechanist.records import (
     Candidate,
@@ -65,6 +65,7 @@ STAGES = {"multi": ["load", "findings", "panel", "generate", "verify_r0", "scout
                      "investigate", "synthesize", "critique", "chase", "linkage", "revise", "circuits", "experiment",
                      "therapy", "report"]}
 LIT_TOOLS = {"literature_search", "gene_diseases", "find_findings", "known_regulators", "known_pairs", "receptor_paths"}
+DOSSIER_TOOLS = LIT_TOOLS | {"trial_search"}  # the dossier also reads what the field is trialling
 # fields added after runs began: left out of stage fingerprints while at these defaults, so older runs keep their cache
 FP_DEFAULTS = {"study_question": False, "therapy_steps": 6, "therapy_targets": 30, "experiment_papers": 120}
 DRUG_TOOLS = {"literature_search", "gene_diseases", "gene_drugs", "find_findings"}  # experiments and therapy
@@ -296,15 +297,16 @@ class Runner:
             if kb is not None and not kb.available:
                 self.event(stage="toolbox", action="knowledge base missing", path=str(kb_dir))
                 kb = None
-            lit = None
+            lit = trials = None
             if self.cfg.literature:
                 forbidden = {self.cfg.study, *(x for ss in s.dataset.groups.values() for x in ss)}
                 lit = Literature(kb_dir / "lit_cache", forbidden, self.dir / "external_queries.jsonl",
                                  fetch=self._lit_fetch)
+                trials = Trials(lit, fetch=self._lit_fetch)
             ot = (OpenTargets(kb_dir / "lit_cache", lit, self.dir / "external_queries.jsonl", fetch=self._ot_fetch)
                   if lit is not None else None)
             self._toolbox = Toolbox(s, fs, cells=self._cells, kb=kb, literature=lit, lab_tables=self.cfg.lab_tables,
-                                    opentargets=ot,
+                                    opentargets=ot, trials=trials,
                                     primary=self.cfg.disease,
                                     expression_loader=lambda: fnd.load_expression(s, self.cfg.findings, cells=self.cells))
             self._toolbox.on_result = self.llm.transcript.tool
@@ -1163,7 +1165,7 @@ class Runner:
 
     @staticmethod
     def _lit_ok(results: list[ToolResult]) -> set[str]:
-        return {r.id for r in results if r.ok and r.tool in LIT_TOOLS | DRUG_TOOLS}
+        return {r.id for r in results if r.ok and r.tool in DOSSIER_TOOLS | DRUG_TOOLS}
 
     def _s_dossier(self, ctx):
         _ds, fs, context = self._findings(ctx, self.cfg.investigate_digest)
@@ -1172,7 +1174,7 @@ class Runner:
         def fn():
             tb = self.toolbox(fs)
             results: list[ToolResult] = []
-            execute, catalog = self._restricted(tb, LIT_TOOLS, results, 5001)
+            execute, catalog = self._restricted(tb, DOSSIER_TOOLS, results, 5001)
             st: dict = {"dossier": {}, "steps": [], "dropped": 0, "dropped_items": [], "seen": set()}
 
             def draft(previous: str, tag: str):
@@ -1188,22 +1190,27 @@ class Runner:
                 for r in results:
                     for p in (r.data or {}).get("papers", []) if r.ok else []:
                         by_pmid.setdefault(str(p.get("pmid")), []).append(r.id)
+                    for t in (r.data or {}).get("trials", []) if r.ok else []:
+                        by_pmid.setdefault(str(t.get("nct", "")).upper(), []).append(r.id)
                 known_f = {f.id for f in fs}
 
                 def resolve(y):  # a search id, or a PMID a search here returned (models often cite those)
                     i = inv.normalize_id(str(y))
                     if i in ok:
                         return [i]
-                    return by_pmid.get(re.sub(r"\D", "", str(y)), [])
-                for key in ("defining_features", "cells_states", "mediators_genes", "genetics", "therapies",
-                            "comparator_differences"):
+                    nct = re.search(r"NCT\d{8}", str(y).upper())
+                    return by_pmid.get(nct.group(0) if nct else re.sub(r"\D", "", str(y)), [])
+                for key in (*agents.DOSSIER_SECTIONS, "beyond_single_cell"):
                     items = [x for x in ans.get(key) or [] if isinstance(x, dict) and x.get("text")]
                     out[key] = []
                     for x in items:
                         ids = list(dict.fromkeys(i for y in x.get("ids") or [] for i in resolve(y)))
                         fids = [i for i in (inv.normalize_id(str(y)) for y in x.get("ids") or []) if i in known_f]
                         if ids:  # every literature item rests on a search run here
-                            out[key].append({"text": str(x["text"]), "ids": ids})
+                            item = {"text": str(x["text"]), "ids": ids}
+                            if key == "beyond_single_cell":
+                                item.update(why=str(x.get("why") or ""), trace=str(x.get("trace") or ""))
+                            out[key].append(item)
                         elif fids:  # a data observation, not literature: kept, labelled as such
                             out["data_observations"].append({"text": str(x["text"]), "ids": fids})
                         else:
