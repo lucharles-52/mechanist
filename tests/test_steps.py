@@ -350,9 +350,11 @@ def test_missing_links_rank_experiments_and_check_therapies():
          {"drug": "PUSHMAB", "target": "CXCL13", "circuits": [2]},
          {"drug": "OLDDRUG", "target": "OSM", "circuits": [1]}, {"drug": "GHOST", "target": "OSM"}],
         lookups, circuits, ms, {"D01"}, "OLDDRUG is reported in case series", "PG")
-    assert [h["drug"] for h in hyps] == ["OLDDRUG", "PUSHMAB", "BLOCKMAB"]  # in use, then approved, then trials
-    assert hyps[0]["level"] == "in use for this disease" and hyps[2]["depends_on"] == ["M1"]
-    assert not hyps[1]["blocks"] and any("not as a blocker" in o.text for o in objs)
+    # the drug acting on both circuits first, though it is only in trials; use in the disease breaks no circuit
+    assert [h["drug"] for h in hyps] == ["BLOCKMAB", "OLDDRUG", "PUSHMAB"]
+    by = {h["drug"]: h for h in hyps}
+    assert by["OLDDRUG"]["level"] == "in use for this disease" and by["BLOCKMAB"]["depends_on"] == ["M1"]
+    assert not by["PUSHMAB"]["blocks"] and any("not as a blocker" in o.text for o in objs)
     assert any("GHOST" in o.text for o in objs)
     pw = inv.pathway_weights([{"name": "chemokine", "genes": ["CXCL13", "NOTATARGET"]}], targets, hyps, circuits)
     assert pw[0]["genes"] == ["CXCL13"] and pw[0]["weight"] == round(1 + 2 / 3, 3)
@@ -594,4 +596,5 @@ def test_index_patient_drugs_rank_on_the_patients_circuits_and_name_the_candidat
     assert x["level"] == "reported in a candidate disease" and x["reported_in"] == ["DiseaseB"]
     assert x["improves"] == ["P01"] and x["similar"] == ["D02"]
     cohort, _ = inv.check_therapies(hyps, lk, circuits, [], items, "drugx is used in DiseaseB", "Patient")
-    assert cohort[0]["drug"] == "DRUGX" and cohort[0]["level"] == "in use for this disease"
+    # every design: the drug on the better-supported circuit first; use in the disease does not lift it
+    assert [h["drug"] for h in cohort] == ["DRUGY", "DRUGX"] and cohort[1]["level"] == "in use for this disease"

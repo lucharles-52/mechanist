@@ -431,7 +431,7 @@ pre.sum{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,C
       <p class="secsub">Across: the share of the circuits' support that sits on steps the drug acts on, so a drug further right breaks the circuits whichever of them is right. Up: how close the drug is to clinical use; for a patient without a settled diagnosis, the top row means reported in one of the candidate diseases. Select a drug to jump to it.</p>
       <div class="chart" id="dchart"></div>
       <h2 class="sec">Drugs by hypothesis</h2>
-      <p class="secsub">Drugs grouped by the hypothesis whose steps they act on, best-supported hypothesis first. Within a hypothesis, drugs closest to use come first. A drug that acts in several hypotheses appears under each, with the others listed. Select a drug to open its full case under its row.</p>
+      <p class="secsub">Drugs grouped by the hypothesis whose steps they act on, best-supported hypothesis first. Within a hypothesis, the drugs that break more of its steps, and more of the circuits overall, come first; how close a drug is to use is shown but does not set the order. A drug that acts in several hypotheses appears under each, with the others listed. Select a drug to open its full case under its row.</p>
       <div id="byhyp"></div>
       <div id="dconsid"></div>
     </article>
@@ -663,7 +663,7 @@ function drugHTML(d){ const dossier = Object.fromEntries((D.record.dossier || []
     ${(d.similar||[]).length ? `<div class="sub2">Where it resembles a candidate disease</div><ul class="lst">${d.similar.map(i => `<li><span class="n">${esc(i)}</span><div><b style="font-weight:600">${esc(((dossier[i] || {}).section || "").split(":")[0])}.</b> ${esc((dossier[i] || {}).text || "")}</div></li>`).join("")}</ul>` : ""}
     ${d.rationale ? `<div class="sub2">The pharmacologist's reasoning</div><p style="font-size:14.5px;margin:0">${linkIds(d.rationale)}</p>` : ""}</div></div></div>`; }
 $("#byhyp").innerHTML = D.circuits.map(c => { const ds = D.therapy.filter(d => (d.circuits || []).includes(c.rank))
-    .map(d => ({d, hit: stepsHit(d, c)})).sort((a, b) => LIDX(a.d) - LIDX(b.d) || b.hit.length - a.hit.length || b.d.robustness - a.d.robustness);
+    .map(d => ({d, hit: stepsHit(d, c)})).sort((a, b) => b.hit.length - a.hit.length || b.d.robustness - a.d.robustness || LIDX(a.d) - LIDX(b.d));
   if (!ds.length) return "";
   return `<section class="hyp"><h3 class="hh">Hypothesis ${c.rank}<span>${esc(c.short)}</span><small>proposed by ${esc(c.support)} attempts · ${ds.length} drug${ds.length > 1 ? "s" : ""}</small></h3>
     <div class="tbw"><table class="dtab"><tr><th>Drug</th><th>How ready</th><th>Acts on these steps</th><th>Also acts in</th><th>Safety</th></tr>${ds.map(({d, hit}) => `<tr data-dd="${esc(d.drug)}" tabindex="0">

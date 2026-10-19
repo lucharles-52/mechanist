@@ -1151,7 +1151,9 @@ Rules:
   step being right. Drugs differ in breadth: CELL-TYPE TARGETS lists the cell types the circuits use, with their markers
   in this data and the drugs acting on them. Lay out the range of options; a clinician weighs certainty of effect
   against safety, so do not choose between them.
-- Prefer drugs already reported for this disease or a related one, then approved drugs for other indications.
+- The drugs are there to break the hypothesised circuits: choose each for the step it breaks and how much of the
+  circuits' support sits on that step. That a drug is already reported for this disease or a related one is supporting
+  evidence for it, never the reason to list it.
 - Also group the targets into pathways (name each in plain words, list its genes from THERAPY TARGETS, and the drug
   classes acting on it), so a reader sees which pathways the circuits converge on.
 - Every drug in THERAPY TARGETS at phase 3 or approval that you leave out gets one line in passed_over saying why

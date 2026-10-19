@@ -1307,10 +1307,9 @@ def check_therapies(hyps: list[dict], lookups: dict[str, dict], circuits: list[d
                                   text=f"{d['drug']} acts on {g} as {', '.join(acts) or 'an unknown action'}, not as a "
                                        f"blocker: check the direction against the circuit step."))
     lv = {x: i for i, x in enumerate(LEVELS)} | {x: i for i, x in enumerate(INDEX_LEVELS)}
-    if design == "index_patient":  # this patient's circuits first; use in a candidate disease only breaks ties
-        out.sort(key=lambda h: (-h["support"], len(h["depends_on"]), lv.get(h["level"], 9), not h["blocks"]))
-    else:
-        out.sort(key=lambda h: (lv.get(h["level"], 9), -h["support"], len(h["depends_on"]), not h["blocks"]))
+    # the drugs are there to break the hypothesised circuits: the circuits' support they act on first, then how few
+    # untested steps they depend on; use in this disease (or a candidate one) is supporting evidence and breaks ties
+    out.sort(key=lambda h: (-h["support"], len(h["depends_on"]), lv.get(h["level"], 9), not h["blocks"]))
     for i, h in enumerate(out, 1):
         h["rank"] = i
     return out, objs
