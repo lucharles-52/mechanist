@@ -229,6 +229,7 @@ class Toolbox:
         self._cells = cells
         self.kb = kb
         self.lit = literature
+        self.trials = trials
         self._idx = None
         self._lock = threading.RLock()
         self._expression_loader = expression_loader
@@ -244,6 +245,7 @@ class Toolbox:
                                             or (kb is not None and kb.has_signalling))
                                        and (t.name != "pathway_footprint" or kb is not None)
                                        and (t.name != "literature_search" or literature is not None)
+                                       and (t.name != "trial_search" or trials is not None)
                                        and (t.name not in ("gene_diseases", "gene_drugs") or opentargets is not None)
                                        and (t.name != "fibroblast_programs" or lab_tables)}
 
@@ -395,6 +397,10 @@ class Toolbox:
                  "between alternatives is allowed). Returns PMIDs and verbatim sentences about OTHER studies: use "
                  "them to propose mechanisms, then test them in this data. Search related diseases and other "
                  "tissues too, not only this disease.", self.literature_search),
+            Tool("trial_search", "condition, n=10", "ClinicalTrials.gov: registered trials for a disease (plain "
+                 "words), newest first, with phase, status, whether results are posted, and the drugs tested. "
+                 "Answers: what is being tried in this disease now, and so which mechanisms the field is betting "
+                 "on.", self.trial_search),
             Tool("gene_diseases", "gene", "Open Targets: the diseases a gene is associated with across all of "
                  "medicine, with the evidence type behind each (genetic association, literature, expression, animal "
                  "model, known drug), and the drugs acting on it with their clinical stage. Answers: where else is "
@@ -1625,6 +1631,16 @@ class Toolbox:
             raise ToolError(f"literature service unreachable: {exc}") from None
         return text, data, ["published findings from other studies; not evidence about these samples",
                             "abstract sentences only; the full paper was not read"]
+
+    def trial_search(self, condition: str, n: int = 10):
+        try:
+            text, data = self.trials.search(condition, n)
+        except KnowledgeError as exc:
+            raise ToolError(str(exc)) from None
+        except OSError as exc:
+            raise ToolError(f"ClinicalTrials.gov unreachable: {exc}") from None
+        return text, data, ["registered trials, not their outcomes; a trial is a bet on a mechanism, not evidence "
+                            "for it", "not evidence about these samples"]
 
     def gene_diseases(self, gene: str):
         try:

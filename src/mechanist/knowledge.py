@@ -23,6 +23,7 @@ import pandas as pd
 
 KB_DIR = Path(__file__).resolve().parents[2] / "kb"
 EPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+CTGOV = "https://clinicaltrials.gov/api/v2/studies"
 STOP = {"and", "or", "the", "of", "in", "by", "a", "an", "to", "for", "with", "on", "is", "are", "cells", "cell"}
 
 
@@ -361,6 +362,58 @@ class Literature:
         text = (f"Europe PMC, query '{q}' — {len(papers)} papers (other studies, not this one). Quotes are verbatim "
                 f"from abstracts:\n" + ("\n".join(lines) or "no matching papers"))
         return text, {"query": q, "papers": papers}
+
+
+class Trials:
+    """ClinicalTrials.gov registry search by condition. Uses the literature tool's query rules, cache and log."""
+
+    FIELDS = "NCTId,BriefTitle,Condition,Phase,OverallStatus,InterventionName,StartDate,HasResults"
+
+    def __init__(self, lit: Literature, fetch: Callable[[str], dict] | None = None):
+        self.lit = lit
+        self._fetch = fetch or Literature._http
+
+    def search(self, condition: str, n: int = 10) -> tuple[str, dict]:
+        q = self.lit.check_query(condition)
+        n = max(1, min(int(n), 20))
+        url = CTGOV + "?" + urllib.parse.urlencode({"query.cond": q, "pageSize": str(min(3 * n, 60)),
+                                                    "fields": self.FIELDS, "sort": "StartDate:desc"})
+        key = hashlib.sha256(url.encode()).hexdigest()
+        hit = self.lit.cache / f"{key}.json"
+        if hit.exists():
+            body = json.loads(hit.read_text())
+        else:
+            body = self._fetch(url)
+            hit.write_text(json.dumps(body))
+        if self.lit.log is not None:
+            with self.lit.log.open("a") as fh:
+                fh.write(json.dumps({"query": q, "url": url, "cached": hit.exists(), "time": time.time()}) + "\n")
+        # the registry matches loosely (synonyms, related terms): keep trials that name every query word
+        words = [w for w in re.split(r"[\s/]+", q.lower()) if w not in STOP and len(w) > 1]
+        trials, lines = [], []
+        for st in body.get("studies") or []:
+            ps = st.get("protocolSection") or {}
+            conds = (ps.get("conditionsModule") or {}).get("conditions") or []
+            title = (ps.get("identificationModule") or {}).get("briefTitle", "")
+            hay = " ".join([title, *conds]).lower()
+            if not all(w in hay for w in words):
+                continue
+            t = {"nct": (ps.get("identificationModule") or {}).get("nctId", ""), "title": title,
+                 "conditions": conds[:4], "phase": "/".join((ps.get("designModule") or {}).get("phases") or []) or "n/a",
+                 "status": (ps.get("statusModule") or {}).get("overallStatus", ""),
+                 "start": ((ps.get("statusModule") or {}).get("startDateStruct") or {}).get("date", ""),
+                 "interventions": [i.get("name", "") for i in (ps.get("armsInterventionsModule") or {})
+                                   .get("interventions") or []][:4],
+                 "has_results": bool(st.get("hasResults"))}
+            trials.append(t)
+            lines.append(f"{t['nct']} ({t['phase']}, {t['status'].lower().replace('_', ' ')}, started {t['start'] or '?'}"
+                         f"{', results posted' if t['has_results'] else ''}) {t['title']}: "
+                         f"{', '.join(t['interventions']) or 'no intervention listed'}")
+            if len(trials) >= n:
+                break
+        text = (f"ClinicalTrials.gov, condition '{q}': {len(trials)} trials, newest first (registered plans and "
+                f"status, not outcomes):\n" + ("\n".join(lines) or "no registered trials name this condition"))
+        return text, {"query": q, "trials": trials}
 
 
 PMID_RE = re.compile(r"PMID[:\s]*?(\d{5,9})", re.IGNORECASE)
