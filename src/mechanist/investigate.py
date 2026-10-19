@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from collections.abc import Callable
 
 from mechanist.records import Hypothesis, Objection, Question, Requirement, Synthesis, ToolResult
 from mechanist.verify import CELL_FAMILIES, cell_family
@@ -1060,6 +1061,124 @@ def therapy_targets(circuits: list[dict], ms: list[dict], limit: int = 30, exclu
     for t in out:
         t["support"] = round(t["support"], 3)
     return out[:limit]
+
+
+def expand_target(name: str, symbols: set[str], receptors_of: Callable[[str], list[str]], members: int = 30,
+                  per_ligand: int = 20) -> list[dict]:
+    """The genes a therapy target stands for, each with how it was reached: the gene itself; for a family name (no
+    gene of that exact symbol, e.g. a ligand family) its members among the known symbols; and for each ligand, its
+    receptors' subunits, since many drugs block the receptor rather than the ligand. Order: named, members, receptors.
+    No ranking among receptors: the resource has none, so all are looked up (cached) and the pharmacologist judges."""
+    g = name.upper()
+    out = [{"gene": g, "via": "named"}] if g in symbols or not symbols else []
+    if not out:
+        fam = sorted(x for x in symbols if re.fullmatch(re.escape(g) + r"[A-Z0-9]{1,3}", x))[:members]
+        out = [{"gene": x, "via": f"member of {g}"} for x in fam] or [{"gene": g, "via": "named"}]
+    seen = {x["gene"] for x in out}
+    for lig in [x["gene"] for x in out]:
+        try:
+            recs = receptors_of(lig)
+        except Exception:  # noqa: BLE001 - not a ligand in the resource
+            recs = []
+        subs = list(dict.fromkeys(u.upper() for r in recs for u in str(r).split("_") if u))[:per_ligand]
+        for r in subs:
+            if r not in seen:
+                seen.add(r)
+                out.append({"gene": r, "via": f"receptor of {lig}"})
+    return out
+
+
+def considered_drugs(targets: list[dict], lookups: dict[str, dict], hyps: list[dict], objs: list,
+                     passed: list[dict]) -> list[dict]:
+    """Every drug the lookups found for each target, and what became of it: listed (a hypothesis), dropped (by the
+    checks), passed over (with the pharmacologist's reason) or not chosen (no reason given). Lookups that found nothing,
+    or matched a different gene than asked, are kept so a reader sees why a drug is absent."""
+    listed = {(h["drug"].upper(), h["target"].upper()) for h in hyps}
+    dropped = {str(o.text).split(" on ")[0].upper() for o in objs if "not in any drug lookup" in str(o.text)}
+    why = {str(x.get("drug", "")).upper(): str(x.get("why") or "") for x in passed if isinstance(x, dict)}
+    out = []
+    for t in targets:
+        rows = []
+        for lk in t.get("lookups") or [{"gene": t["gene"], "via": "named"}]:
+            d = lookups.get(lk["gene"].upper())
+            if d is None:
+                rows.append({**lk, "matched_as": "", "drugs": [], "note": "lookup failed or not run"})
+                continue
+            sym = str(d.get("symbol") or lk["gene"]).upper()
+            note = (f"Open Targets matched {lk['gene']} as {sym}" if sym != lk["gene"].upper() else "")
+            drugs = []
+            for x in d.get("drugs") or []:
+                n = str(x.get("drug", "")).upper()
+                st = ("listed" if (n, lk["gene"].upper()) in listed else "dropped" if n in dropped
+                      else "passed over" if why.get(n) else "not chosen")
+                drugs.append({"drug": x.get("drug"), "stage": x.get("stage", ""),
+                              "actions": sorted({a["action"] for a in x.get("actions") or [] if a.get("action")}),
+                              "status": st, "why": why.get(n, "")})
+            rows.append({**lk, "matched_as": sym if note else "", "drugs": drugs,
+                         "note": note + ("; no drugs" if note and not drugs else "") if note else
+                         ("" if drugs else "no drugs or clinical candidates")})
+        out.append({"target": t["gene"], "circuits": t["circuits"], "lookups": rows})
+    return out
+
+
+NUM = re.compile(r"(?<![\w.])\d+(?:\.\d+)?(?![\w])")
+CARD_TEXT = ("sender", "signal", "receiver", "receptor", "effect", "follows", "leads_to", "must_hold")
+
+
+def _norm(t: str) -> str:
+    return re.sub(r"\s+", " ", str(t or "")).strip().lower().replace("\u2019", "'")
+
+
+def check_cards(cards: list[dict], edges: list[dict], results: dict) -> tuple[list[dict], list[dict]]:
+    """Keep what each mechanism card can show from its sources: numbers only as the cited results give them, quotes
+    only as a cited literature result holds them, with that result's PMID. Anything else is dropped and said so."""
+    out, dropped = [], []
+    for c in cards:
+        try:
+            k = int(c.get("step"))
+        except (TypeError, ValueError):
+            continue
+        if not 1 <= k <= len(edges) or any(x["step"] == k for x in out):
+            continue
+        e = edges[k - 1]
+        own = [i for i in e.get("ids") or [] if i in results]
+        seen = c.get("seen_here") if isinstance(c.get("seen_here"), dict) else {}
+        sids = [i for i in seen.get("ids") or [] if i in results]
+        hay = " ".join(str(getattr(results[i], "summary", "")) for i in dict.fromkeys(own + sids))
+        card = {"step": k}
+        for f in CARD_TEXT:
+            v = str(c.get(f) or "").strip()
+            bad = [n for n in NUM.findall(v) if n not in hay]
+            if bad:
+                dropped.append({"step": k, "field": f, "why": f"numbers not in the cited results: {', '.join(bad[:4])}"})
+                v = ""
+            card[f] = v
+        st = str(seen.get("text") or "").strip()
+        bad = [n for n in NUM.findall(st) if n not in " ".join(str(results[i].summary) for i in sids)]
+        if st and (not sids or bad):
+            dropped.append({"step": k, "field": "seen_here",
+                            "why": "no cited result" if not sids else f"numbers not in the cited results: {', '.join(bad[:4])}"})
+            st, sids = "", []
+        card["seen_here"] = {"text": st, "ids": sids}
+        lit = []
+        for x in c.get("literature") or []:
+            if not isinstance(x, dict):
+                continue
+            r = results.get(str(x.get("id") or ""))
+            q, pmid = str(x.get("quote") or "").strip().strip('"'), re.sub(r"\D", "", str(x.get("pmid") or ""))
+            pm = {str(p.get("pmid")) for p in ((getattr(r, "data", None) or {}).get("papers") or [])} if r else set()
+            why = ("no such literature result" if r is None or r.tool != "literature_search"
+                   else "quote not in that result" if not q or _norm(q) not in _norm(r.summary)
+                   else "PMID not in that result" if pmid not in pm else "")
+            if why:
+                dropped.append({"step": k, "field": "literature", "why": why, "quote": q[:200]})
+                continue
+            lit.append({"claim": str(x.get("claim") or ""), "quote": q, "pmid": pmid, "id": r.id,
+                        "context": str(x.get("context") or "")})
+        card["literature"] = lit
+        out.append(card)
+    out.sort(key=lambda x: x["step"])
+    return out, dropped
 
 
 def drug_level(drug: dict, therapy_texts: str, disease: str) -> str:

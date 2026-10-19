@@ -116,6 +116,46 @@ def circuit_block(c: dict, groups: dict, gorder, samples, pdata) -> dict:
             "cells": {n["id"]: {"label": n["label"], "sub": n["sub"]} for n in graph["ring"]}}
 
 
+def full_record(dirs: list[Path], res: dict) -> list[list]:
+    """The whole run in time order, nothing cut: every agent turn with the model's full reply (from the call cache), every
+    tool call with its full arguments and result, and the harness's notes. Rows: [time, stage, who, kind, text, full,
+    result id]. The transcript itself clips long lines, so the cache and the stage results are the sources of record."""
+    def reply(key: str) -> str:
+        for d in dirs:
+            f = d / "llm_cache" / f"{key}.json"
+            if f.exists():
+                try:
+                    return str(json.loads(f.read_text()).get("response") or "")
+                except ValueError:
+                    return ""
+        return ""
+    rows, seen = [], set()
+    for d in reversed(dirs):  # the oldest folder first: a rerun folder repeats nothing it carried over
+        tp = d / "transcript.jsonl"
+        if not tp.exists():
+            continue
+        for line in tp.read_text().splitlines():
+            t = json.loads(line)
+            tag, kind = str(t.get("tag") or ""), t.get("kind", "")
+            sig = (t.get("time"), t.get("role"), tag, t.get("text", "")[:80])
+            if sig in seen:
+                continue
+            seen.add(sig)
+            src = str(t.get("for") or tag) if kind == "result" else tag
+            stage = re.sub(r"\d+$", "", src.split(":")[0]) if ":" in src else ("harness" if kind == "note" else "")
+            if kind == "result":
+                r = res.get(tag) or {}
+                args = json.dumps(r.get("args"), ensure_ascii=False) if r else ""
+                full = f"{r.get('tool', '')}({args})\n{r.get('summary') or ''}".strip() if r else t.get("text", "")
+                rows.append([t["time"], stage, "tool", kind, t.get("text", ""), full, tag])
+            else:
+                full = reply(t["key"]) if t.get("key") else ""
+                rows.append([t["time"], stage, t.get("role", ""), kind, t.get("text", ""),
+                             full if full and full.strip() != t.get("text", "").strip() else "", ""])
+    rows.sort(key=lambda r: r[0])
+    return rows
+
+
 def reviews(v) -> list[dict]:
     out = []
     for r in v or []:
@@ -123,7 +163,7 @@ def reviews(v) -> list[dict]:
             continue
         text = r.get("assessment") or ""
         if not text and r.get("depth"):
-            text = " ".join(f"{d.get('link')}: {d.get('missing')}" for d in r["depth"] if isinstance(d, dict))[:1600]
+            text = " ".join(f"{d.get('link')}: {d.get('missing')}" for d in r["depth"] if isinstance(d, dict))
         raw = r.get("demands") if isinstance(r.get("demands"), list) else r.get("objections")
         dem = [d.get("text") if isinstance(d, dict) else str(d) for d in (raw if isinstance(raw, list) else [])]
         out.append({"verdict": r.get("verdict", ""), "attempt": r.get("attempt"), "text": text, "demands": dem})
@@ -160,6 +200,10 @@ def build(run: Path, portal: bool, human: bool = True) -> str:
                          "summary": c.get("summary", ""), "status": cnt, "merged_from": c.get("merged_from") or [],
                          "steps": b["steps"], "cells": b["cells"], "ends": b["ends"], "has_fig": bool(b["svg"])})
     figs = "".join(f'<template id="fig-{c["rank"]}">{b["svg"]}</template>' for c, b in zip(circs, blocks) if b["svg"])
+    cards = {(cc.get("rank"), k["step"]): k for cc in (ctx.get("cards") or {}).get("circuits") or [] for k in cc["cards"]}
+    for c in circuits:  # the mechanism card of each step (stage "cards"), when the run has one
+        for st_ in c["steps"]:
+            st_["card"] = cards.get((c["rank"], st_["i"]))
 
     ex, th = ctx.get("experiment") or {}, ctx.get("therapy") or {}
     ms = {m["id"]: m for m in ex.get("missing_links") or th.get("missing_links") or []}
@@ -193,8 +237,8 @@ def build(run: Path, portal: bool, human: bool = True) -> str:
               "candidates": [{k: h.get(k) for k in ("id", "title", "summary")} for h in st("candidates").get("hypotheses") or []],
               "chase": chase_q, "linkage": [{"link": x.get("link"), "suggests": x.get("suggests")} for x in st("linkage").get("links") or []],
               "attempts": attempts, "ranking": st("circuits").get("ranking", "")}
-    results = {rid: {"tool": r.get("tool"), "args": json.dumps(r.get("args"), ensure_ascii=False)[:300],
-                     "summary": (r.get("summary") or "")[:1400]} for rid, r in res.items()}
+    results = {rid: {"tool": r.get("tool"), "args": json.dumps(r.get("args"), ensure_ascii=False),
+                     "summary": r.get("summary") or ""} for rid, r in res.items()}
 
     # correspondence of the experiment and treatment stages, from the newest run that made each
     chat, have = [], set()
@@ -209,7 +253,7 @@ def build(run: Path, portal: bool, human: bool = True) -> str:
             stg = "therapy" if tag.startswith("therapy") else "experiment" if tag.startswith("experiment") else ""
             if t["role"] == "tool" or not stg or stg in have:
                 continue
-            rows.append({"stage": stg, "role": t["role"], "time": t["time"][11:16], "text": t["text"][:900]})
+            rows.append({"stage": stg, "role": t["role"], "time": t["time"][11:16], "text": t["text"]})
         have |= {r["stage"] for r in rows}
         chat += rows
     gates = 0
@@ -227,6 +271,7 @@ def build(run: Path, portal: bool, human: bool = True) -> str:
     data = {"page": {k: page.get(k) for k in ("question", "answer", "points")}, "groups": dict(gorder), "case": case,
             "circuits": circuits, "experiments": ex.get("experiments") or [], "programmes": ex.get("programmes") or [],
             "not_testable": ex.get("not_testable") or [], "therapy": th.get("hypotheses") or [], "missing": ms,
+            "considered": th.get("considered") or [], "trace": full_record(dirs, res),
             "stages": stages, "record": record, "results": results, "chat": chat,
             "counts": {"tools": len(res), "lit": sum(1 for r in res.values() if r.get("tool") == "literature_search"),
                        "gates": gates, "attempts": len(attempts) or 1},
@@ -258,7 +303,8 @@ def build(run: Path, portal: bool, human: bool = True) -> str:
 PROSE = {"page": ("answer", "question"), "points": ("text",), "circuit": ("summary",), "step": ("note",),
          "experiment": ("title", "shows", "adds", "refutes_if", "caveat", "feasibility", "rna_vs_protein"),
          "prediction": ("why",), "programme": ("claim",), "seqstep": ("why_now", "if_yes", "if_no", "adapt"),
-         "drug": ("breaks", "rationale"), "not_testable": ("why",)}
+         "drug": ("breaks", "rationale"), "not_testable": ("why",),
+         "card": ("effect", "follows", "leads_to", "must_hold")}
 
 
 def _prose_slots(data: dict):
@@ -268,6 +314,12 @@ def _prose_slots(data: dict):
     for c in data["circuits"]:
         yield from ((c, k) for k in PROSE["circuit"])
         yield from ((st, k) for st in c["steps"] for k in PROSE["step"])
+        for st in c["steps"]:
+            if st.get("card"):
+                yield from ((st["card"], k) for k in PROSE["card"])
+                yield from ((x, "claim") for x in st["card"]["literature"])
+                if st["card"]["seen_here"]["text"]:
+                    yield st["card"]["seen_here"], "text"
     for e in data["experiments"]:
         yield from ((e, k) for k in PROSE["experiment"])
         yield from ((p, k) for p in e.get("predictions") or [] for k in PROSE["prediction"])

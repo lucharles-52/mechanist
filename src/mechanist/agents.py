@@ -1122,12 +1122,14 @@ Tools (args as named):
 THERAPY_SYSTEM = f"""You are the team's translational pharmacologist (stage 9). {WORKFLOW}
 You receive the final circuits (ranked, with support), the missing links (M ids: untested edges, exhausted steps,
 leads), the disease items (D ids, including the therapies reported for this disease) and THERAPY TARGETS: the genes on
-the circuits' edges with the drugs Open Targets lists for each (clinical stage, action, mechanism, indications).
+the circuits' edges with the drugs Open Targets lists for each (clinical stage, action, mechanism, indications). A
+target that names a family is looked up through its members, and every ligand through its receptors, since many drugs
+block the receptor; each lookup says how it was reached and when Open Targets matched a different gene.
 Write therapeutic HYPOTHESES for research, never a recommendation for a patient: which drug, acting on which step of
 which circuit, should change the disease, and how this could be tested.
 Rules:
-- Name only drugs listed in THERAPY TARGETS or returned by a gene_drugs call you make, with the target they were
-  listed for. Never state a clinical stage, dose or approval: the code adds them from the lookup.
+- Name only drugs listed in THERAPY TARGETS or returned by a gene_drugs call you make, with the gene they were
+  listed for (the receptor, when the drug was found through a ligand's receptor). Never state a clinical stage, dose or approval: the code adds them from the lookup.
 - The drug must oppose the step it acts on (an inhibitor or antagonist of an activating step). Say which edge it breaks.
 - Say which circuits it acts on, which disease items it should improve (D ids), which circuits it should fail under
   (the drug's step is absent from them), and which untested M ids it depends on (test those first).
@@ -1138,13 +1140,54 @@ Rules:
 - Prefer drugs already reported for this disease or a related one, then approved drugs for other indications.
 - Also group the targets into pathways (name each in plain words, list its genes from THERAPY TARGETS, and the drug
   classes acting on it), so a reader sees which pathways the circuits converge on.
+- Every drug in THERAPY TARGETS at phase 3 or approval that you leave out gets one line in passed_over saying why
+  (wrong direction, acts off the circuits, a better drug on the same step, safety), so a reader sees it was weighed.
 - At most 14 hypotheses. You may use tools to check a drug or a target. Each turn: call ONE tool, or give the answer.
   At most {{steps}} tool calls.
 Reply with ONE JSON object per turn: a tool call {{{{"purpose": str, "tool": str, "args": {{{{...}}}}}}}} or
 {{{{"answer": {{{{"hypotheses": [{{{{"drug": str, "target": str (gene),
 "circuits": [ranks], "breaks": str (the edge, or the cell type it removes),
 "improves": [D ids], "fails_under": [ranks], "depends_on": [M ids], "rationale": str (2-3 sentences, plain words)}}}}],
-"pathways": [{{{{"name": str, "genes": [genes], "note": str (one line: drug classes and how the circuits use it)}}}}]}}}}}}}}"""
+"pathways": [{{{{"name": str, "genes": [genes], "note": str (one line: drug classes and how the circuits use it)}}}}],
+"passed_over": [{{{{"drug": str, "target": str, "why": str}}}}]}}}}}}}}"""
+
+CARDS_SYSTEM = """You are the team's explainer. A reader wants to follow one circuit step by step and understand the moving
+parts: who sends what to whom, through which receptor or route, what it does to the receiving cell, and how each step
+leads to the next. For every step of the circuit below, write a mechanism card from the step itself and the results it
+cites, nothing else.
+- sender, signal, receiver, receptor: the cell that acts, the molecule or contact it acts through, the cell acted on,
+  and the receptor or route on that cell. Write "not stated" when the step and its results do not say.
+- effect: what the signal does to the receiver, in one or two plain sentences.
+- follows / leads_to: how the previous step produces this one and how this one feeds the next, by step number.
+- seen_here: what this dataset shows for the step, with the numbers exactly as the cited results give them, and their
+  R ids. Empty when the data show nothing for it.
+- literature: what published work says, each with a sentence quoted verbatim from a cited literature result (the
+  quoted abstract sentences), its PMID, its R id, and the disease or tissue it was found in.
+- must_hold: what has to be true for the step to work that nobody has shown yet.
+No number anywhere except as the cited results give it. Plain words; no abbreviation a biologist outside the field
+would not know without spelling it out once.
+Reply with JSON only: {"cards": [{"step": int, "sender": str, "signal": str, "receiver": str, "receptor": str,
+"effect": str, "follows": str, "leads_to": str, "seen_here": {"text": str, "ids": [R ids]}, "literature": [{"claim":
+str, "quote": str, "pmid": str, "id": str, "context": str}], "must_hold": str}]}"""
+
+CARDS_USER = """Circuit: {title}
+{summary}
+
+Steps (number. source -> target | via | evidence status | team note | cited results):
+{steps}
+
+The cited results, in full:
+{evidence}"""
+
+
+def cards(llm: LoggedLLM, tag: str, user: str) -> list[dict]:
+    def parse(d):
+        items = d.get("cards") if isinstance(d, dict) else d
+        if not isinstance(items, list):
+            raise TypeError("expected a list of cards")
+        return [x for x in items if isinstance(x, dict)]
+    return _ask(llm, tag, CARDS_SYSTEM, user, parse) or []
+
 
 THERAPY_USER = """{context}
 

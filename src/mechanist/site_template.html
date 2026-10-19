@@ -122,6 +122,33 @@ p.secsub{font-size:15.5px;color:var(--ink-2);max-width:70ch;margin:0 0 16px}
 .lst{list-style:none;margin:0;padding:0;border-top:1px solid var(--hair)}
 .lst>li{padding:7px 0;border-bottom:1px solid var(--hair);font-size:14.5px;line-height:1.4;display:grid;grid-template-columns:38px minmax(0,1fr);gap:6px}
 .lst .n{font:600 12.5px var(--label);color:var(--ink-2);padding-top:2px;font-variant-numeric:tabular-nums}
+.frec>details{border-top:1px solid var(--hair)}.frec>details>summary{cursor:pointer;padding:10px 0;font:600 15px var(--serif)}
+.frec>details>summary small{font:400 12.5px var(--label);color:var(--muted);margin-left:8px}
+.frec .tr{display:grid;grid-template-columns:44px 150px minmax(0,1fr);gap:8px;padding:6px 0;border-top:1px dotted var(--hair);font-size:13.5px;line-height:1.45}
+.frec .tr .tt{font:400 12px var(--label);color:var(--muted);font-variant-numeric:tabular-nums}.frec .tr b{font:600 12.5px var(--label);overflow-wrap:anywhere}
+.frec .tr.result{color:var(--ink-2)}.frec .tr.note{color:var(--muted)}.frec .tx{min-width:0;overflow-wrap:anywhere}
+.frec details details>summary{cursor:pointer;font:400 12.5px var(--label);color:var(--muted);margin-top:3px}
+.frec pre.sum{white-space:pre-wrap;max-height:none}
+@media (max-width:640px){.frec .tr{grid-template-columns:40px minmax(0,1fr)}.frec .tr .tx{grid-column:1/-1}}
+.more{font:600 13px var(--label);background:none;border:1px solid var(--hair);padding:5px 12px;border-radius:3px;cursor:pointer;color:var(--ink)}
+.mcard{margin:10px 0 14px;border-top:1px solid var(--ink);padding-top:10px}
+.mflow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;margin-bottom:10px}
+.mflow>div{background:var(--page);padding:7px 9px;font-size:13.5px;line-height:1.35;position:relative}
+.mflow>div:not(:last-child)::after{content:"→";position:absolute;right:-7px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:12px;z-index:1}
+.cl{display:block;font:600 11px var(--label);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.mcard .na{color:var(--muted)}.meff{margin:0 0 8px;font-size:14.5px;line-height:1.5}
+.mlink{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13.5px;line-height:1.45;margin-bottom:8px}.mlink p{margin:0}
+.mev{display:grid;gap:8px;font-size:14px;line-height:1.45}.mev>div{border-top:1px solid var(--hair);padding-top:6px}
+.mev q{display:block;margin:4px 0;padding-left:10px;border-left:2px solid var(--hair);font-style:italic;quotes:none}
+.mev small{display:block;color:var(--muted);font-size:12.5px}.mev p{margin:0 0 6px}
+@media (max-width:640px){.mflow{grid-template-columns:1fr 1fr}.mlink{grid-template-columns:1fr}}
+.consid>details{border-top:1px solid var(--hair)}.consid>details>summary{cursor:pointer;padding:9px 0;font:600 14.5px var(--label)}
+.consid>details>summary small{font:400 12.5px var(--label);color:var(--muted);margin-left:8px}
+.consid .lk{margin:0 0 10px;font-size:14px;line-height:1.45}.consid .lk b{font:600 13px var(--label)}
+.consid .lk .via{color:var(--muted);font:400 12.5px var(--label);margin-left:6px}.consid .lk .warn{color:var(--sel)}
+.consid .dl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;margin:4px 0 0 0;padding:0;list-style:none}
+.consid .dl li{display:contents}.consid .dl .st{font:600 12px var(--label);color:var(--muted);white-space:nowrap}
+.consid .dl .st.listed{color:var(--ink)}.consid .dl small{display:block;color:var(--muted);font-size:12.5px}
 .lst small{display:block;font:400 12.5px/1.4 var(--label);color:var(--muted);margin-top:2px}
 .warnw{font:600 12px var(--label);color:var(--sel);margin-left:6px}
 .rid{font:500 12px var(--label);border:0;background:none;padding:0;color:var(--ink-2);text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer}
@@ -406,6 +433,7 @@ pre.sum{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,C
       <h2 class="sec">Drugs by hypothesis</h2>
       <p class="secsub">Drugs grouped by the hypothesis whose steps they act on, best-supported hypothesis first. Within a hypothesis, drugs closest to use come first. A drug that acts in several hypotheses appears under each, with the others listed. Select a drug to open its full case under its row.</p>
       <div id="byhyp"></div>
+      <div id="dconsid"></div>
     </article>
     <aside class="margin"><div id="dcorr" class="corr"></div></aside>
   </div>
@@ -422,6 +450,9 @@ pre.sum{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,C
     <p class="secsub">Data queries, literature searches and drug lookups, as the tools returned them.</p>
     <div class="evsearch"><input id="evq" type="search" placeholder="Search results: a gene, a cell type, a PMID" aria-label="Search results"><select id="evt" aria-label="Tool"></select></div>
     <div class="evl" id="evl"></div>
+    <h2 class="sec">The full record</h2>
+    <p class="secsub">Everything the run did, in order and uncut: each agent's turn as logged, with the model's whole reply under it, and each tool call with its whole result. Open a stage to read it.</p>
+    <div id="frec" class="frec"></div>
   </div>
 </div>
 
@@ -493,6 +524,15 @@ function linksFor(rank, step){
   return {ms, exps: D.experiments.filter(e => (e.tests || []).some(t => ms.includes(t)) || (e.confirms || []).some(g => step.genes.includes(g))),
           drugs: D.therapy.filter(d => (d.depends_on || []).some(t => ms.includes(t)) || step.genes.includes(d.target))};
 }
+/* the mechanism card of one step: the moving parts, then its evidence in three kinds */
+function cardHTML(k, n){ const part = (lab, v) => v && v !== "not stated" ? `<div><span class="cl">${lab}</span>${esc(v)}</div>` : `<div class="na"><span class="cl">${lab}</span>not stated</div>`;
+  return `<div class="mcard"><div class="mflow">${part("Sender", k.sender)}${part("Signal", k.signal)}${part("Receptor or route", k.receptor)}${part("Receiver", k.receiver)}</div>
+    ${k.effect ? `<p class="meff"><b>What it does.</b> ${esc(k.effect)}</p>` : ""}
+    ${k.follows || k.leads_to ? `<div class="mlink">${k.follows ? `<p><b>Before.</b> ${linkSteps(k.follows)}</p>` : ""}${k.leads_to ? `<p><b>Next.</b> ${linkSteps(k.leads_to)}</p>` : ""}</div>` : ""}
+    <div class="mev"><div><span class="cl">Seen in this data</span>${k.seen_here.text ? `${esc(k.seen_here.text)} ${ridBtns(k.seen_here.ids)}` : `<span class="na">nothing measured for this step</span>`}</div>
+    <div><span class="cl">Published</span>${k.literature.length ? k.literature.map(x => `<p>${esc(x.claim)}<q>${esc(x.quote)}</q><small>${esc(x.context)}${x.context ? " · " : ""}PMID ${esc(x.pmid)} ${ridBtns([x.id])}</small></p>`).join("") : `<span class="na">no published support quoted</span>`}</div>
+    <div><span class="cl">Still to show</span>${k.must_hold ? esc(k.must_hold) : `<span class="na">not stated</span>`}</div></div></div>`; }
+function linkSteps(t){ return esc(t); }
 function plate(root, c){
   const tpl = document.getElementById("fig-" + c.rank);
   root.innerHTML = `<div class="pnl"><div class="pl">A <span>${c.rank === 1 ? `Lead circuit, proposed by ${esc(c.support)} attempts` : `Circuit ${c.rank}, proposed by ${esc(c.support)} attempts`}</span></div>
@@ -517,7 +557,7 @@ function plate(root, c){
     pb.innerHTML = `<div class="pl">B <span>Step ${s.i} of ${c.steps.length}</span></div>
       <div class="ev">${sline(s.status)}${esc(WORD[s.status]||s.status)}${ms.length ? ` · open question ${ms.join(", ")}` : ""}</div>
       <h3 class="sh">${esc(s.source)} → ${esc(s.target)}</h3>${s.via ? `<p class="via">via ${esc(s.via)}</p>` : ""}
-      ${strips}${s.note ? `<p class="found"><b>Team note.</b> ${linkIds(s.note)}</p>` : ""}
+      ${s.card ? cardHTML(s.card, c.steps.length) : ""}${strips}${s.note ? `<p class="found"><b>Team note.</b> ${linkIds(s.note)}</p>` : ""}
       ${s.ids.length ? `<div class="ids">${ridBtns(s.ids)}${s.ids.filter(i => !D.results[i]).map(i => `<span class="lab" style="color:var(--muted);font-size:12px">${esc(i)}</span>`).join("")}</div>` : ""}
       <div class="sub2">Experiments that would test it</div>${exps.length ? `<ul class="lst">${exps.slice(0,3).map(x => `<li><span class="n">${esc(x.id)}</span><div><a href="#experiments" data-open="${esc(x.id)}">${esc(x.title)}</a><small>${esc(QWORD[x.question] || x.kind || "")} · ${esc(TIER[x.tier] || x.setting || "")}</small></div></li>`).join("")}</ul>` : `<p class="quiet">No experiment in the plan addresses this step.</p>`}
       <div class="sub2">Drugs that act on it</div>${drugs.length ? `<ul class="lst">${drugs.map(d => `<li><span class="n">#${d.rank}</span><div><a href="#treatments" data-dd="${esc(d.drug)}">${esc(cap(d.drug))}</a> ${gene(d.target)}${d.boxed ? `<span class="warnw">black-box warning</span>` : ""}<small>${esc(d.level)}</small></div></li>`).join("")}</ul>` : `<p class="quiet">No drug in the panel acts on this step.</p>`}`; }
@@ -659,6 +699,15 @@ function drugChart(){
 }
 drugChart();
 
+/* every drug the lookups found, and what became of it: so an absent drug can be explained */
+(function considered(){ const cs = D.considered || []; if (!cs.length) return;
+  const ST = {"listed": "listed above", "passed over": "passed over", "dropped": "dropped by the checks", "not chosen": "not chosen"};
+  const stage = s => String(s || "stage unknown").replace(/_/g, " ").toLowerCase();
+  $("#dconsid").innerHTML = `<h2 class="sec">Every drug considered</h2><p class="secsub">Each target on the circuits was looked up in Open Targets, together with its family's members and its receptors, since many drugs block the receptor rather than the signal. Below is everything those lookups found, and what became of each drug. A lookup that found nothing, or that Open Targets matched to a different gene, is shown so an absent drug can be traced.</p>
+  <div class="consid">${cs.map(t => { const n = t.lookups.reduce((a, l) => a + l.drugs.length, 0), k = t.lookups.reduce((a, l) => a + l.drugs.filter(d => d.status === "listed").length, 0);
+    return `<details><summary>${gene(t.target)}<small>circuits ${t.circuits.join(", ")} · ${t.lookups.length} lookups · ${n} drugs found · ${k} listed</small></summary>${t.lookups.map(l => `<div class="lk"><b>${esc(l.gene)}</b><span class="via">${esc(l.via === "named" ? "the target itself" : l.via)}</span>${l.note ? ` <span class="${l.matched_as ? "warn" : "via"}">${esc(l.note)}</span>` : ""}${l.drugs.length ? `<ul class="dl">${l.drugs.map(d => `<li><span>${esc(cap(String(d.drug).toLowerCase()))} <small>${esc(stage(d.stage))}${d.actions.length ? "; " + esc(d.actions.join(", ")) : ""}${d.why ? " · " + esc(d.why) : ""}</small></span><span class="st ${d.status === "listed" ? "listed" : ""}">${esc(ST[d.status] || d.status)}</span></li>`).join("")}</ul>` : ""}</div>`).join("")}</details>`; }).join("")}</div>`;
+})();
+
 /* ================= correspondence (the margin of experiments and treatments) ================= */
 function letter(m){ const isPI = m.role === "PI", isPh = m.stage === "therapy";
   const who = isPI ? "PI" : isPh ? "Pharmacologist" : "Experimentalist"; let t = (m.head || "") + m.text + (m.call ? " → " + m.call : ""), body = "", q = "", dec = "";
@@ -681,14 +730,14 @@ $("#dcorr").innerHTML = corr("therapy"); wireCorr($("#dcorr"));
 /* ================= reasoning ================= */
 const VD = v => ({pass:"Passed", revise:"Sent back", sign_off:"Signed off", weak:"Weak", ok:"Adequate"}[v] || v);
 $("#stagebar").innerHTML = D.stages.map(s => `<button type="button" class="stg" data-k="${s.key}" aria-pressed="false"><div class="sn">${s.n}</div><div class="sm">${esc(s.name)}</div><div class="sc2">${esc(s.count)}</div><div class="vdots">${s.reviews.map(r => `<i class="${/pass|sign_off|ok/.test(r.verdict) ? "p" : ""}" title="${esc(VD(r.verdict))}"></i>`).join("")}</div></button>`).join("");
-const qrow = q => `<div class="qrow"><div class="qh">${esc(q.id)}<span class="k">${esc(q.kind || "")}</span>${q.conclusion ? `<span class="verd ${esc(q.conclusion)}">${esc(q.conclusion)}</span>` : ""}</div><p class="qt">${esc((q.text || "").slice(0, 420))}${(q.text||"").length > 420 ? "…" : ""}</p>${q.answer ? `<p class="qa">${linkIds(q.answer.slice(0, 900))}${q.answer.length > 900 ? "…" : ""}</p>` : ""}</div>`;
+const qrow = q => `<div class="qrow"><div class="qh">${esc(q.id)}<span class="k">${esc(q.kind || "")}</span>${q.conclusion ? `<span class="verd ${esc(q.conclusion)}">${esc(q.conclusion)}</span>` : ""}</div><p class="qt">${esc(q.text || "")}</p>${q.answer ? `<p class="qa">${linkIds(q.answer)}</p>` : ""}</div>`;
 const RENDER = {
   dossier: () => { const by = {}; D.record.dossier.forEach(x => (by[x.section] ||= []).push(x));
     return `<div class="cols3">${Object.entries(by).map(([sec, xs]) => `<div><h4>${esc(sec.replace(/_/g, " "))}</h4><ul class="lst">${xs.map(x => `<li><span class="n">${esc(x.id)}</span><div>${esc(x.text)}</div></li>`).join("")}</ul></div>`).join("")}</div>`; },
   check: () => { const s = D.record.check.summary || {};
     const col = (k, t) => `<div><h4>${t}</h4><ul class="lst">${(s[k] || []).map(x => `<li><span class="n">·</span><div>${esc(x.text)}${x.why ? `<small>${esc(x.why)}</small>` : ""}${x.checks ? `<small>${esc(x.checks)}</small>` : ""}</div></li>`).join("")}</ul></div>`;
     return `<div class="cols3">${col("expected_present","Expected, and present")}${col("expected_absent","Expected, but absent")}${col("unexpected","Unexpected")}</div><h4 style="font:700 13px var(--label);margin:24px 0 4px">The questions behind it</h4>${D.record.check.questions.map(qrow).join("")}`; },
-  candidates: () => `<ul class="lst">${D.record.candidates.map(h => `<li><span class="n">${esc(h.id)}</span><div><b style="font-weight:600">${esc(h.title)}</b><small>${esc((h.summary || "").slice(0, 600))}</small></div></li>`).join("")}</ul>`,
+  candidates: () => `<ul class="lst">${D.record.candidates.map(h => `<li><span class="n">${esc(h.id)}</span><div><b style="font-weight:600">${esc(h.title)}</b><small>${esc(h.summary || "")}</small></div></li>`).join("")}</ul>`,
   chase: () => { const cnt = {}; D.record.chase.forEach(q => cnt[q.conclusion || "open"] = (cnt[q.conclusion || "open"] || 0) + 1);
     return `<p class="lab" style="color:var(--ink-2)">${Object.entries(cnt).map(([k, v]) => `${v} ${esc(k)}`).join(" · ")}</p>${D.record.chase.map(qrow).join("")}`; },
   linkage: () => `<ul class="lst">${D.record.linkage.map((l, i) => `<li><span class="n">L${i+1}</span><div><b style="font-weight:600">${esc(l.link)}</b><small>${esc(typeof l.suggests === "string" ? l.suggests : JSON.stringify(l.suggests || ""))}</small></div></li>`).join("")}</ul>`,
@@ -709,10 +758,28 @@ $("#stagebar").addEventListener("click", ev => { const b = ev.target.closest(".s
 showStage("circuits");
 const tools = [...new Set(Object.values(D.results).map(r => r.tool))].sort();
 $("#evt").innerHTML = `<option value="">All tools (${Object.keys(D.results).length})</option>` + tools.map(t => `<option value="${esc(t)}">${esc((t || "").replace(/_/g, " "))}</option>`).join("");
+let evN = 80;
 function evList(){ const q = $("#evq").value.trim().toLowerCase(), t = $("#evt").value;
   const hits = Object.entries(D.results).filter(([id, r]) => (!t || r.tool === t) && (!q || (id + " " + r.args + " " + r.summary).toLowerCase().includes(q)));
-  $("#evl").innerHTML = `<p class="lab" style="color:var(--muted);font-size:12.5px">${hits.length} results${hits.length > 80 ? ", first 80 shown" : ""}</p>` + hits.slice(0, 80).map(([id, r]) => `<div class="er"><div class="eh"><button type="button" class="rid" data-rid="${id}">${id}</button>${esc((r.tool || "").replace(/_/g, " "))}<span>${esc(r.args)}</span></div><pre class="sum">${esc(r.summary.slice(0, 420))}${r.summary.length > 420 ? "…" : ""}</pre></div>`).join(""); }
+  $("#evl").innerHTML = `<p class="lab" style="color:var(--muted);font-size:12.5px">${hits.length} results${hits.length > evN ? `, first ${evN} shown` : ""}</p>` + hits.slice(0, evN).map(([id, r]) => `<div class="er"><div class="eh"><button type="button" class="rid" data-rid="${id}">${id}</button>${esc((r.tool || "").replace(/_/g, " "))}<span>${esc(r.args)}</span></div><pre class="sum">${esc(r.summary)}</pre></div>`).join("")
+    + (hits.length > evN ? `<p><button type="button" class="more" id="evmore">Show all ${hits.length}</button></p>` : ""); }
 $("#evq").addEventListener("input", evList); $("#evt").addEventListener("change", evList); evList();
+$("#evl").addEventListener("click", ev => { if (ev.target.id === "evmore") { evN = 1e9; evList(); } });
+
+/* the full record: every agent turn with the model's whole reply, every tool call with its whole result, in order */
+(function fullRecord(){ const T = D.trace || []; if (!T.length) return;
+  const NAME = {dossier: "Pathology dossier", check: "Do we see the pathology?", panel: "Expert panel", generate: "First hypotheses",
+    candidates: "Candidate mechanisms", verify_r: "Verification", scout: "Literature scout", investigate: "Investigation", chase: "Chase",
+    synthesize: "Synthesis", critique: "Critique", linkage: "Disease linkage", revise: "Revision", circuits: "Circuits",
+    experiment: "Experiments", therapy: "Treatments", harness: "Accounts and limits"};
+  const by = new Map(); T.forEach(r => { const k = r[1] || "other"; if (!by.has(k)) by.set(k, []); by.get(k).push(r); });
+  const row = r => { const [t, , who, kind, text, full, rid] = r;
+    const head = `<span class="tt">${esc(t.slice(11, 16))}</span><b>${esc(kind === "result" ? rid : who)}</b>`;
+    return `<div class="tr ${kind}">${head}<div class="tx">${kind === "result" ? `<button type="button" class="rid" data-rid="${esc(rid)}">${esc(rid)}</button> ` : ""}${esc(kind === "result" ? full.split("\n")[0] : text)}${full ? `<details><summary>${kind === "result" ? "full result" : "full reply"}</summary><pre class="sum">${esc(full)}</pre></details>` : ""}</div></div>`; };
+  $("#frec").innerHTML = [...by.entries()].map(([k, rs]) => `<details class="frs" data-k="${esc(k)}"><summary>${esc(NAME[k] || k)}<small>${rs.length} entries · ${rs.filter(r => r[3] === "turn").length} agent turns · ${rs.filter(r => r[3] === "result").length} tool results</small></summary><div class="frb"></div></details>`).join("");
+  $("#frec").addEventListener("toggle", ev => { const d = ev.target; if (!d.classList || !d.classList.contains("frs") || !d.open) return;
+    const b = d.querySelector(".frb"); if (!b.childElementCount) b.innerHTML = by.get(d.dataset.k).map(row).join(""); }, true);
+})();
 $("#runline").textContent = D.runline + (D.prose ? ` · text edited for readers (${D.prose.rewritten} of ${D.prose.passages} passages) and checked with everwrite's tells.py: ${D.prose.strong_before} strong and ${D.prose.weak_before} weak findings before, ${D.prose.strong_after} and ${D.prose.weak_after} after.` : "");
 
 /* ================= result drawer and gene card ================= */

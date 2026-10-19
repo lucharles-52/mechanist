@@ -480,3 +480,72 @@ def test_dossier_lists_what_single_cell_cannot_measure_and_the_check_reports_it(
     assert "Known but not measurable here" in agents.check_text(c) and "(trace: receptor raised)" in agents.check_text(c)
     for word in ("complement", "C3", "C5"):  # the prompt names no mechanism: the agents find them
         assert word not in agents.DOSSIER_SYSTEM
+
+
+def test_a_family_target_is_looked_up_through_its_members_and_their_receptors():
+    syms = {"FAMA", "FAMB", "FAMRN", "FAMX1", "RECA", "RECB", "OTHER"}
+    pairs = {"FAMA": ["RECA_RECB"], "FAMB": ["RECA_RECB"], "FAMRN": ["RECA"]}
+
+    def receptors_of(g):
+        if g not in pairs:
+            raise KeyError(g)
+        return pairs[g]
+    got = inv.expand_target("FAM", syms, receptors_of)
+    assert [x["gene"] for x in got] == ["FAMA", "FAMB", "FAMRN", "FAMX1", "RECA", "RECB"]
+    assert got[0]["via"] == "member of FAM" and got[4]["via"] == "receptor of FAMA"
+    assert inv.expand_target("OTHER", syms, receptors_of) == [{"gene": "OTHER", "via": "named"}]
+    # an unknown name is still looked up as named (Open Targets may know an alias)
+    assert inv.expand_target("ZZZ", syms, receptors_of) == [{"gene": "ZZZ", "via": "named"}]
+
+
+def test_considered_drugs_say_what_became_of_every_drug_found():
+    from mechanist.records import Objection
+    targets = [{"gene": "FAM", "circuits": [1], "lookups": [{"gene": "FAMA", "via": "member of FAM"},
+                                                             {"gene": "RECA", "via": "receptor of FAMA"},
+                                                             {"gene": "FAMZ", "via": "member of FAM"}]}]
+    lk = {"FAMA": {"gene": "FAMA", "symbol": "FAMRN", "drugs": []},
+          "RECA": {"gene": "RECA", "symbol": "RECA", "drugs": [
+              {"drug": "DRUG1", "stage": "APPROVAL", "actions": [{"action": "inhibitor"}]},
+              {"drug": "DRUG2", "stage": "PHASE_3", "actions": [{"action": "antagonist"}]},
+              {"drug": "DRUG3", "stage": "PHASE_1", "actions": []}]}}
+    hyps = [{"drug": "DRUG1", "target": "RECA"}]
+    objs = [Objection(target="therapy", kind="unsupported_step", source="verifier",
+                      text="DRUG3 on FAMA is not in any drug lookup that ran; dropped.")]
+    out = inv.considered_drugs(targets, lk, hyps, objs, [{"drug": "drug2", "why": "a better drug on the same step"}])
+    rows = {r["gene"]: r for r in out[0]["lookups"]}
+    assert rows["FAMA"]["matched_as"] == "FAMRN" and "matched FAMA as FAMRN; no drugs" in rows["FAMA"]["note"]
+    st = {d["drug"]: (d["status"], d["why"]) for d in rows["RECA"]["drugs"]}
+    assert st == {"DRUG1": ("listed", ""), "DRUG2": ("passed over", "a better drug on the same step"),
+                  "DRUG3": ("dropped", "")}
+    assert rows["FAMZ"]["note"] == "lookup failed or not run"
+
+
+def test_mechanism_cards_keep_only_numbers_and_quotes_their_sources_hold():
+    from mechanist.records import ToolResult
+    res = {"R1": ToolResult(id="R1", tool="gene_by_state", args={}, ok=True,
+                            summary="SIG1 in CellA: case 42.5% of cells vs reference 3.1%"),
+           "R2": ToolResult(id="R2", tool="literature_search", args={}, ok=True,
+                            summary='PMID 111 (2020) A paper\n  "SIG1 drives CellB proliferation in lesional skin."',
+                            data={"papers": [{"pmid": "111"}]})}
+    edges = [{"source": "CellA", "target": "CellB", "via": "SIG1", "ids": ["R1", "R2"]}, {"source": "CellB", "target": "X"}]
+    cards = [{"step": 1, "sender": "CellA", "signal": "SIG1", "receiver": "CellB", "receptor": "REC1",
+              "effect": "Makes CellB divide in 90% of cases.", "follows": "", "leads_to": "Step 2 uses the dividing cells.",
+              "seen_here": {"text": "42.5% of case CellA vs 3.1% of reference", "ids": ["R1"]},
+              "literature": [{"claim": "drives proliferation", "quote": "SIG1 drives CellB proliferation in lesional skin.",
+                              "pmid": "111", "id": "R2", "context": "skin"},
+                             {"claim": "made up", "quote": "SIG1 cures everything.", "pmid": "111", "id": "R2"},
+                             {"claim": "wrong pmid", "quote": "SIG1 drives CellB proliferation in lesional skin.",
+                              "pmid": "999", "id": "R2"}],
+              "must_hold": "REC1 on CellB"},
+             {"step": 2, "seen_here": {"text": "7 of 8 cells", "ids": []}},
+             {"step": 9}]
+    out, dropped = inv.check_cards(cards, edges, res)
+    assert [c["step"] for c in out] == [1, 2]
+    c1 = out[0]
+    assert c1["effect"] == "" and c1["seen_here"]["text"].startswith("42.5%") and c1["seen_here"]["ids"] == ["R1"]
+    assert [x["pmid"] for x in c1["literature"]] == ["111"] and c1["receptor"] == "REC1"
+    assert out[1]["seen_here"] == {"text": "", "ids": []}
+    why = sorted((d["step"], d["field"], d["why"]) for d in dropped)
+    assert (1, "effect", "numbers not in the cited results: 90") in why
+    assert (1, "literature", "quote not in that result") in why and (1, "literature", "PMID not in that result") in why
+    assert (2, "seen_here", "no cited result") in why

@@ -432,6 +432,11 @@ def test_staged_workflow_gates_every_stage(projects, findings, tmp_path):
                                 {"source": "Fibroblast", "target": "B cell", "via": "CXCL13", "status": "likely"}]}],
                                ranking="a spatial map would")],
         "circuits:gate1": gate("pass"),
+        "cards:c1": json.dumps({"cards": [{"step": 1, "sender": "Fibroblast", "signal": "CXCL13", "receiver": "B cell",
+                                           "receptor": "CXCR5", "effect": "Draws B cells in.", "follows": "",
+                                           "leads_to": "", "seen_here": {"text": "", "ids": []}, "literature": [],
+                                           "must_hold": "CXCR5 on the B cells"}]}),
+        "cards:c2": json.dumps({"cards": []}),
     })
     cfg = _cfg(projects).model_copy(update={"investigation": "threads", "thread_rounds": 1, "threads_per_round": 1,
                                             "thread_steps": 3, "thread_workers": 1, "critic_questions": 1,

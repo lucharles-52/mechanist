@@ -62,8 +62,8 @@ STAGES = {"multi": ["load", "findings", "panel", "generate", "verify_r0", "scout
           "single": ["load", "findings", "single", "verify_r0", "scout", "investigate", "synthesize", "report"],
           # the team workflow: dossier -> do we see it -> candidates -> chase -> experiments -> model, a PI gate after each
           "staged": ["load", "findings", "dossier", "check", "panel", "generate", "candidates", "verify_r0", "scout",
-                     "investigate", "synthesize", "critique", "chase", "linkage", "revise", "circuits", "experiment",
-                     "therapy", "report"]}
+                     "investigate", "synthesize", "critique", "chase", "linkage", "revise", "circuits", "cards",
+                     "experiment", "therapy", "report"]}
 LIT_TOOLS = {"literature_search", "gene_diseases", "find_findings", "known_regulators", "known_pairs", "receptor_paths"}
 DOSSIER_TOOLS = LIT_TOOLS | {"trial_search"}  # the dossier also reads what the field is trialling
 # fields added after runs began: left out of stage fingerprints while at these defaults, so older runs keep their cache
@@ -1623,6 +1623,29 @@ class Runner:
                else "chase")
         return self.stage("experiment", [dep], fn)
 
+    def _s_cards(self, ctx):
+        """A mechanism card per circuit step: sender, signal, receptor, receiver, effect, how it links to its
+        neighbours, and its evidence (seen here, published, still to show), checked against the cited results."""
+        def fn():
+            circs, _ms = self._agenda(ctx)
+            res = {r.id: r for r in self._prior_results(ctx)}
+            out, dropped = [], []
+            for c in circs:
+                edges = [e for e in c.get("edges") or [] if isinstance(e, dict)]
+                ids = list(dict.fromkeys(i for e in edges for i in e.get("ids") or [] if i in res))
+                evidence = "\n\n".join(f"[{i}] {res[i].tool}({json.dumps(res[i].args, ensure_ascii=False)})\n{res[i].summary}"
+                                        for i in ids)[:60000]
+                steps = "\n".join(f"{k}. {e.get('source', '')} -> {e.get('target', '')} | {e.get('via', '')} | "
+                                  f"{e.get('status', '')} | {e.get('note', '')} | {', '.join(e.get('ids') or []) or '-'}"
+                                  for k, e in enumerate(edges, 1))
+                user = agents.CARDS_USER.format(title=c.get("title", ""), summary=c.get("summary", ""), steps=steps,
+                                                evidence=evidence or "(no results cited)")
+                got, bad = inv.check_cards(agents.cards(self.llm, f"cards:c{c.get('rank')}", user), edges, res)
+                out.append({"rank": c.get("rank"), "cards": got})
+                dropped += [{"rank": c.get("rank"), **b} for b in bad]
+            return {"circuits": out, "dropped": dropped}
+        return self.stage("cards", ["circuits"], fn)
+
     def _s_therapy(self, ctx):
         _ds, fs, context = self._findings(ctx, self.cfg.investigate_digest)
         phen = self.cfg.disease_phenotype or "(not given)"
@@ -1635,8 +1658,16 @@ class Runner:
             start = max([int(r.id[1:]) for r in prior if r.id[1:].isdigit()] + [0]) + 1
             results: list[ToolResult] = []
             execute, catalog = self._restricted(tb, DRUG_TOOLS, results, start)
-            for t in targets:  # every target's drugs are looked up by code, before any model call
-                execute("gene_drugs", {"gene": t["gene"]})
+            symbols = set(tb.cells.gene_names) if tb.has_cells else set()
+            if tb.kb is not None:
+                lr = tb.kb._table("lr_consensus.csv")
+                symbols |= {u.upper() for col in ("ligand", "receptor") for x in lr[col] for u in str(x).split("_")}
+            receptors_of = (lambda g: tb.kb.pairs(g)[1]["receptors"]) if tb.kb is not None else (lambda g: [])
+            for t in targets:  # every target's drugs are looked up by code, before any model call: the gene, a
+                # family's members, and each ligand's receptors (many drugs block the receptor, not the ligand)
+                t["lookups"] = inv.expand_target(t["gene"], symbols, receptors_of)
+                for lk in t["lookups"]:
+                    execute("gene_drugs", {"gene": lk["gene"]})
             cell_tg: list[dict] = []
             if tb.has_cells:  # cell-type targets: the data's own markers of each lineage the circuits use
                 names = tb.cells.gene_names
@@ -1655,12 +1686,24 @@ class Runner:
                 lk = lookups()
                 lines = []
                 for t in targets:
-                    ds = (lk.get(t["gene"]) or {}).get("drugs") or []
-                    drugs = "; ".join(f"{d['drug']} ({d.get('stage') or '?'}; "
-                                      + ", ".join(sorted({a['action'] for a in d.get('actions') or [] if a.get('action')}))
-                                      + f"; {', '.join((d.get('indications') or [])[:3])})" for d in ds[:6])
+                    parts, empty = [], []
+                    for x in t.get("lookups") or [{"gene": t["gene"], "via": "named"}]:
+                        d = lk.get(x["gene"]) or {}
+                        ds = d.get("drugs") or []
+                        alias = str(d.get("symbol") or x["gene"]).upper()
+                        if not ds:
+                            empty.append(x["gene"] + (f" [matched as {alias}]" if alias != x["gene"] else ""))
+                            continue
+                        drugs = "; ".join(f"{e['drug']} ({e.get('stage') or '?'}; "
+                                          + ", ".join(sorted({a['action'] for a in e.get('actions') or [] if a.get('action')}))
+                                          + f"; {', '.join((e.get('indications') or [])[:3])})" for e in ds[:6])
+                        tag = x["gene"] + ("" if x["via"] == "named" else f" ({x['via']})") + (
+                            f" [Open Targets matched it as {alias}]" if alias != x["gene"] else "")
+                        parts.append(f"{tag}: {drugs}")
+                    if empty:
+                        parts.append("no drugs: " + ", ".join(empty))
                     lines.append(f"- {t['gene']} | circuits {', '.join(map(str, t['circuits']))} | {t['support']} | "
-                                 f"{', '.join(t['untested']) or '-'} | {drugs or 'no drugs listed'}")
+                                 f"{', '.join(t['untested']) or '-'} | " + " || ".join(parts))
                 return "\n".join(lines) or "(none)"
 
             def cells_text() -> str:
@@ -1672,7 +1715,7 @@ class Runner:
                                       for g in ct["genes"])
                     lines.append(f"- {ct['lineage']} | circuits {', '.join(map(str, ct['circuits']))} | {drugs}")
                 return "\n".join(lines) or "(no cell data)"
-            st: dict = {"hypotheses": [], "pathways": [], "objections": [], "steps": [], "seen": set()}
+            st: dict = {"hypotheses": [], "pathways": [], "objections": [], "steps": [], "seen": set(), "passed": []}
 
             def draft(previous: str, tag: str):
                 system = agents.THERAPY_SYSTEM.format(steps=self.cfg.therapy_steps)
@@ -1688,7 +1731,11 @@ class Runner:
                     return
                 hyps, objs = inv.check_therapies(ans.get("hypotheses") or [], lookups(), circs, ms,
                                                  {i for i, _s, _t in items}, therapy_texts, self.cfg.disease, cell_tg)
-                st.update(hypotheses=hyps, objections=objs,
+                via = {x["gene"]: x["via"] for t in targets for x in t.get("lookups") or [] if x["via"] != "named"}
+                for h in hyps:
+                    h["via"] = via.get(h["target"], "")
+                st.update(hypotheses=hyps, objections=objs, passed=[x for x in ans.get("passed_over") or []
+                                                                   if isinstance(x, dict) and x.get("drug")],
                           pathways=inv.pathway_weights(ans.get("pathways") or [], targets, hyps, circs))
 
             draft("", "therapy:r1")
@@ -1710,7 +1757,9 @@ class Runner:
                 new, st["seen"] = len(now - st["seen"]), st["seen"] | now
                 return new
             reviews = self._gate(context, "9. Therapeutic hypotheses", material, act, "therapy", progress=progress)
+            considered = inv.considered_drugs(targets, lookups(), st["hypotheses"], st["objections"], st["passed"])
             return {"hypotheses": st["hypotheses"], "pathways": st["pathways"], "targets": targets, "cell_targets": cell_tg,
+                    "considered": considered, "passed_over": st["passed"],
                     "missing_links": ms, "objections": st["objections"], "results": results, "steps": st["steps"],
                     "reviews": reviews}
         return self.stage("therapy", ["experiment" if "experiment" in ctx else "circuits"], fn)
