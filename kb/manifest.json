@@ -1,0 +1,27 @@
+{
+ "built": "2026-10-15T22:40:12",
+ "liana": "1.10.0",
+ "decoupler": "2.2.0",
+ "files": {
+  "membrane_receptors.csv": {
+   "rows": 2372,
+   "sha256": "3f146eea1762c8351dd73a74a81cf66c02e5845e6ab61d867d6d6ac8315af882"
+  },
+  "omnipath_signaling.csv": {
+   "rows": 71250,
+   "sha256": "78cb26438b5139e0eb0e6e942cfcb25e76cb2df2ee3f845c9280c528c8105e85"
+  },
+  "lr_consensus.csv": {
+   "rows": 4620,
+   "sha256": "8066a7737eb95dde061c8f5f99fa89db8d8600c3b4ed17bf08ec91a25e7c1980"
+  },
+  "collectri.csv": {
+   "rows": 42990,
+   "sha256": "ba07a49f348467744876b10a82768dc6a4ebac44fdc1eac7b6d273d012a56b9a"
+  },
+  "progeny.csv": {
+   "rows": 6463,
+   "sha256": "d257a119a996fc5ea05c84bc09b132bdd3f614d4be319b342d80da70f55cb061"
+  }
+ }
+}

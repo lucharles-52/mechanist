@@ -1,0 +1,34 @@
+# Shared run settings for Mechanist interpretations requested from the portal (Projects/scripts/mechanist_requests.py).
+# The study part (study, groups, disease, phenotype, guidance, design) is drafted per request from the study's own
+# submission; everything below is copied in unchanged. Taken from configs/p061_dress_claude.yaml on 2026-10-19.
+mode: multi
+n_hypotheses: 4
+investigation: threads
+thread_rounds: 3
+threads_per_round: 4
+thread_steps: 8
+thread_workers: 4
+knowledge: true
+literature: true
+scout: true
+pi_rounds: 3
+workflow: staged
+check_threads: 5
+dossier_steps: 12
+experiment_steps: 14
+max_revisions: 1
+llm:
+  backend: claude
+  accounts:
+    - subscription
+    - subscription:~/.config/claude/oauth_token_*   # pooled lab Team seats (the lab agreed to share)
+    - key:~/.config/claude/api_key
+    - key:~/.config/claude/api_key_*
+  base_url: http://127.0.0.1:8000/v1
+  model: opus
+  thread_model: sonnet
+  temperature: 0.2
+  max_tokens: 32000
+  effort: medium
+  external_ok: true
+lab_tables: false

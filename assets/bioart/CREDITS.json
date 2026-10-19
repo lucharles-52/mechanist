@@ -1,0 +1,160 @@
+{
+ "source": "NIAID NIH BioArt Source (bioart.niaid.nih.gov)",
+ "credit_line": "Cell illustrations from NIAID NIH BioArt Source, bioart.niaid.nih.gov",
+ "icons": [
+  {
+   "key": "neutrophil",
+   "entry": 377,
+   "title": "Neutrophil",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/377"
+  },
+  {
+   "key": "activated_neutrophil",
+   "entry": 10,
+   "title": "Activated Neutrophil",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/10"
+  },
+  {
+   "key": "dying_neutrophil",
+   "entry": 136,
+   "title": "Dying Neutrophil",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/136"
+  },
+  {
+   "key": "macrophage",
+   "entry": 312,
+   "title": "Macrophage",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/312"
+  },
+  {
+   "key": "fibroblast",
+   "entry": 153,
+   "title": "Fibroblast",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/153"
+  },
+  {
+   "key": "b_cell",
+   "entry": 612,
+   "title": "B Cell with IgM Receptors",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/612"
+  },
+  {
+   "key": "plasma_cell",
+   "entry": 409,
+   "title": "Plasma B Cell",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/409"
+  },
+  {
+   "key": "t_cell",
+   "entry": 508,
+   "title": "T Cell",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/508"
+  },
+  {
+   "key": "blood_vessel",
+   "entry": 806,
+   "title": "Cut Blood Vessel",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/806"
+  },
+  {
+   "key": "antibody",
+   "entry": 17,
+   "title": "Antibody",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/17"
+  },
+  {
+   "key": "complement_c1",
+   "entry": 85,
+   "title": "Complement C1 Complex",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/85"
+  },
+  {
+   "key": "activated_macrophage",
+   "entry": 780,
+   "title": "Activated Macrophage",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/780"
+  },
+  {
+   "key": "cell_death",
+   "entry": 71,
+   "title": "Cell Death",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/71"
+  },
+  {
+   "key": "cytokines",
+   "entry": 97,
+   "title": "Cytokines",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/97"
+  },
+  {
+   "key": "dendritic_cell",
+   "entry": 111,
+   "title": "Dendritic Cell",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/111"
+  },
+  {
+   "key": "eosinophil",
+   "entry": 139,
+   "title": "Eosinophil",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/139"
+  },
+  {
+   "key": "langerhans_cell",
+   "entry": 284,
+   "title": "Langerhans Cell",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/284"
+  },
+  {
+   "key": "mast_cell",
+   "entry": 879,
+   "title": "Mast Cell",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/879"
+  },
+  {
+   "key": "monocyte",
+   "entry": 355,
+   "title": "Monocyte",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/355"
+  },
+  {
+   "key": "netosis",
+   "entry": 384,
+   "title": "Neutrophil Netosis",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/384"
+  },
+  {
+   "key": "nk_cell",
+   "entry": 376,
+   "title": "Natural Killer Cell",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/376"
+  },
+  {
+   "key": "skin",
+   "entry": 677,
+   "title": "Skin Cross-Section",
+   "license": "Public Domain",
+   "url": "https://bioart.niaid.nih.gov/bioart/677"
+  }
+ ]
+}

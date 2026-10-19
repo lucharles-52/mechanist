@@ -1,0 +1,25 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# run outputs: patient-derived results, model caches and transcripts
+runs/
+
+# per-study configs and cluster job scripts (study ids, cluster paths); the templates are tracked
+configs/*
+!configs/skinpipe_template.yaml
+!configs/request_base_claude.yaml
+!configs/local_models.md
+slurm/
+
+# internal notes with host addresses, account details and study results
+docs/HANDOFF.md
+docs/PROJECT_CONTEXT.md
+docs/mechanist_walkthrough.html
+docs/mockups/
+
+# knowledge tables are rebuilt by scripts/build_kb.py; literature cache is per machine
+kb/*.csv
+kb/lit_cache/

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mechanist"
+version = "0.1.0"
+description = "Agentic mechanistic hypothesis discovery over skinpipe scRNA-seq outputs (research only)"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pandas>=2.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.5",
+]
+
+[project.optional-dependencies]
+cells = ["anndata>=0.10", "scipy>=1.10"]  # cell-level investigation tools (reviewed single-cell objects)
+
+[dependency-groups]
+dev = ["pytest>=7.4", "ruff>=0.6", "anndata>=0.10", "scipy>=1.10"]
+
+[project.scripts]
+mechanist = "mechanist.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

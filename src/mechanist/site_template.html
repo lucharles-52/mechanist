@@ -1,0 +1,740 @@
+<title>Mechanist <!--STUDY--></title>
+<!--FAVICON-->
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,600&display=swap">
+<style>
+/* Layout: a journal article with four sections a reader moves between from the running head. Overview: title, figure
+   plate (lead circuit), every other circuit as its own collapsible plate. Experiments: what to do next and the plan by
+   hypothesis and question. Treatments: drugs grouped by hypothesis. Reasoning: every stage, review and cited result.
+   Details open in place, under what was selected; the margin carries the brief or the review correspondence. */
+:root{
+  --page:#f4f2ed; --plate:#ffffff; --rule:#d8d4ca; --hair:#e8e5de;
+  --ink:#161513; --ink-2:#4b4842; --muted:#6f6b62;
+  --sel:#8c1d18; --sel-wash:#f5e3df; --logo:#2b6cd4;
+  --g0:#c4561a; --g1:#178a6b; --g2:#6b4fc9; --g3:#9a7400;
+  --accent:#161513; --accent-soft:#f1efe9; --surface:#ffffff;
+  --serif:"Source Serif 4","Source Serif Pro",Georgia,"Times New Roman",serif;
+  --label:"IBM Plex Sans Condensed","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --page:#11100e; --plate:#1a1916; --rule:#38352f; --hair:#2a2824;
+  --ink:#f1eee6; --ink-2:#c2bdb1; --muted:#a19c91;
+  --sel:#ef8a7c; --sel-wash:#3a1d19; --logo:#8db4ec;
+  --g0:#e07a45; --g1:#3fbf98; --g2:#9d86f0; --g3:#d6a83a;
+  --accent:#f1eee6; --accent-soft:#24221e; --surface:#1a1916; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --page:#11100e; --plate:#1a1916; --rule:#38352f; --hair:#2a2824;
+  --ink:#f1eee6; --ink-2:#c2bdb1; --muted:#a19c91;
+  --sel:#ef8a7c; --sel-wash:#3a1d19; --logo:#8db4ec;
+  --g0:#e07a45; --g1:#3fbf98; --g2:#9d86f0; --g3:#d6a83a;
+  --accent:#f1eee6; --accent-soft:#24221e; --surface:#1a1916; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:16px/1.55 var(--serif);font-optical-sizing:auto;-webkit-font-smoothing:antialiased}
+::selection{background:var(--sel-wash);color:var(--ink)}
+a{color:inherit;text-underline-offset:3px;text-decoration-thickness:1px}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--sel);outline-offset:2px}
+svg [tabindex],svg [tabindex]:focus,svg [tabindex]:focus-visible{outline:none;-webkit-tap-highlight-color:transparent}
+.dg:focus-visible .d{stroke:var(--sel);stroke-width:2.5}
+.wrap{max-width:1440px;margin:0 auto;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
+.lab{font-family:var(--label);font-variant-numeric:tabular-nums}
+.g{font-style:italic}
+
+/* running head */
+.head{border-bottom:1px solid var(--ink);background:var(--page);position:sticky;top:env(safe-area-inset-top,0px);z-index:30}
+.head .wrap{display:flex;align-items:baseline;gap:22px;flex-wrap:wrap;padding-block:12px 10px}
+.mast{font:700 22px/1 var(--serif);letter-spacing:-.01em;text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+.mast .mk{width:26px;height:26px;flex:none;transform:translateY(2px)}
+.rh{font:400 13px var(--label);color:var(--muted)}
+.back{font:500 13px var(--label);color:var(--ink-2)}
+.toc{display:flex;gap:2px;margin-left:auto;font:500 14.5px var(--label);flex-wrap:wrap}
+.toc a{text-decoration:none;color:var(--ink-2);padding:3px 10px;border-bottom:2px solid transparent}
+.toc a:hover{color:var(--ink)}
+.toc a[aria-current]{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
+.toc .for{display:block;font:400 11.5px var(--label);color:var(--muted)}
+.theme{display:inline-flex;border:1px solid var(--rule);align-self:center}
+.theme button{border:0;background:transparent;width:30px;height:26px;display:grid;place-items:center;cursor:pointer;color:var(--ink-2)}
+.theme button+button{border-left:1px solid var(--rule)}
+.theme button[aria-pressed="true"]{background:var(--ink);color:var(--page)}
+.theme svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4}
+
+/* article grid */
+.article{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:0 40px;padding-block:38px 0}
+.main{min-width:0}
+.margin{min-width:0;border-left:1px solid var(--rule);padding-left:28px}
+h1{font:600 clamp(32px,3.6vw,50px)/1.07 var(--serif);letter-spacing:-.022em;margin:0 0 18px;max-width:22ch;text-wrap:balance}
+h1.view{font-size:clamp(28px,3vw,42px);max-width:26ch}
+.stand{font-size:20px;line-height:1.5;max-width:60ch;margin:0 0 22px;color:var(--ink-2)}
+.byline{font:400 13.5px var(--label);color:var(--muted);margin:0 0 30px;max-width:90ch}
+.byline b{color:var(--ink);font-weight:600}
+h2.sec{font:600 24px/1.2 var(--serif);letter-spacing:-.01em;margin:44px 0 6px;text-wrap:balance}
+p.secsub{font-size:15.5px;color:var(--ink-2);max-width:70ch;margin:0 0 16px}
+.mhead{font:700 15px var(--label);margin:0 0 8px;padding-top:10px;border-top:2px solid var(--ink)}
+.mhead small{display:block;font:400 12.5px var(--label);color:var(--muted);margin-top:2px}
+.brief dl{margin:0;display:grid;gap:12px}
+.brief dt{font:600 15px var(--serif);font-variant:small-caps;letter-spacing:.03em}
+.brief dd{margin:0;font-size:15px;line-height:1.45;color:var(--ink-2)}
+
+/* plates */
+.plate{background:var(--plate);border:1px solid var(--rule);padding:22px 24px 18px;display:grid;
+  grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:20px 30px}
+.pnl{min-width:0;position:relative}
+.pl{font:700 22px/1 var(--label);margin:0 0 6px;display:flex;gap:10px;align-items:baseline}
+.pl span{font:500 13.5px var(--label);color:var(--ink-2)}
+.cellfig{display:block;width:100%;height:auto;font-family:var(--label)}
+.cellfig text{font-family:var(--label)}
+.arw .hit{fill:none;stroke:transparent;stroke-width:22;cursor:pointer}
+.arw .vis{transition:stroke .15s,stroke-width .15s,opacity .15s}
+.arw.sel .vis{stroke:var(--sel)!important;stroke-width:4.4!important}
+.arw:hover .vis{stroke-width:3.4}
+.dimfig .arw:not(.sel) .vis{opacity:.22}
+.chit{fill:transparent;cursor:pointer}
+.ring{pointer-events:none;fill:none;stroke:var(--sel);stroke-width:2.2;stroke-dasharray:3 4;opacity:0;transition:opacity .15s}
+.ring.sel{opacity:1}
+.chit:hover+.ring,.chit:focus-visible+.ring{opacity:.5}
+.steps{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:8px;font:500 12.5px var(--label);color:var(--muted)}
+.steps button{min-width:28px;height:28px;border:1px solid var(--rule);background:var(--plate);border-radius:50%;cursor:pointer;
+  font:600 12.5px var(--label);font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.steps button.observed{border-color:var(--ink);border-width:2px;color:var(--ink)}
+.steps button.speculative{border-style:dashed}
+.steps button.analogy{border-style:dotted}
+.steps button[aria-pressed="true"]{background:var(--sel);border-color:var(--sel);color:var(--plate)}
+.steps .k{margin-right:6px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font:400 12.5px var(--label);color:var(--ink-2);margin-top:6px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend .dotk{width:9px;height:9px;border-radius:50%;display:inline-block}
+.sh{font:600 19px/1.28 var(--serif);margin:2px 0 4px;text-wrap:balance}
+.via{font:400 14px var(--label);color:var(--ink-2);margin:0 0 10px}
+.ev{display:inline-flex;align-items:center;gap:8px;font:600 12.5px var(--label);color:var(--ink-2)}
+.strips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px;margin:12px 0 4px}
+.strip{margin:0;min-width:0}
+.strip figcaption{font:500 12.5px var(--label);color:var(--ink-2);display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.strip figcaption .g{font:italic 600 15px var(--serif);color:var(--ink)}
+.strip svg{display:block;width:100%;height:auto;margin-top:2px}
+.strip .vd{font:500 12px/1.35 var(--label);color:var(--muted);margin-top:2px}
+.strip .vd.hold{color:var(--ink)}
+.quiet{font:400 13.5px/1.5 var(--label);color:var(--muted);margin:10px 0}
+.found{font-size:15px;line-height:1.55;margin:12px 0 0;max-width:62ch}
+.found b{font:600 13px var(--label)}
+.sub2{font:700 13px var(--label);margin:16px 0 6px}
+.lst{list-style:none;margin:0;padding:0;border-top:1px solid var(--hair)}
+.lst>li{padding:7px 0;border-bottom:1px solid var(--hair);font-size:14.5px;line-height:1.4;display:grid;grid-template-columns:38px minmax(0,1fr);gap:6px}
+.lst .n{font:600 12.5px var(--label);color:var(--ink-2);padding-top:2px;font-variant-numeric:tabular-nums}
+.lst small{display:block;font:400 12.5px/1.4 var(--label);color:var(--muted);margin-top:2px}
+.warnw{font:600 12px var(--label);color:var(--sel);margin-left:6px}
+.rid{font:500 12px var(--label);border:0;background:none;padding:0;color:var(--ink-2);text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer}
+.rid:hover{color:var(--sel)}
+.ids{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.caption{font-size:15px;line-height:1.6;margin:14px 0 0;color:var(--ink-2)}
+.caption b{color:var(--ink)}
+.colo{font:400 13px var(--label);color:var(--muted);margin:16px 0 0;padding-top:10px;border-top:1px solid var(--rule);display:flex;gap:18px;flex-wrap:wrap}
+.colo b{color:var(--ink);font-weight:600}
+
+/* the other circuits */
+.tbw{overflow-x:auto}
+.others{margin-top:6px;border-top:1px solid var(--ink)}
+.oc{border-bottom:1px solid var(--rule)}
+.oc>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:80px minmax(0,1fr) 120px 24px;gap:16px;align-items:start;padding:16px 4px}
+.oc>summary::-webkit-details-marker{display:none}
+.oc>summary:hover{background:var(--accent-soft)}
+.oc .fn{font:700 14px var(--label)}
+.oc .ft{font:600 17px/1.35 var(--serif)}
+.oc .ft small{display:block;font:400 14px/1.5 var(--serif);color:var(--ink-2);margin-top:4px}
+.oc .fs{font:500 13px var(--label);color:var(--ink-2);text-align:right}
+.oc .chev{font:400 18px var(--label);color:var(--muted);transition:transform .2s;text-align:center}
+.oc[open] .chev{transform:rotate(90deg)}
+.oc .body{padding:0 0 22px}
+.thumb{width:72px;height:64px;display:block}
+.thumb svg{width:100%;height:100%}
+
+/* margin: correspondence */
+.corr{position:sticky;top:calc(70px + env(safe-area-inset-top,0px))}
+.btn{border:1px solid var(--rule);background:var(--plate);padding:3px 10px;font:500 12.5px var(--label);cursor:pointer}
+.btn:hover{border-color:var(--ink)}
+.letters{max-height:calc(100vh - 300px);min-height:320px;overflow:auto;padding-right:8px;scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
+.lt{padding:10px 0;border-bottom:1px solid var(--hair)}
+.lt .who{font:600 12.5px var(--label);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.lt .who .t{font-weight:400;color:var(--muted)}
+.lt .who .dec{font-weight:700;color:var(--sel)}
+.lt .who .dec.pass{color:var(--g1)}
+.lt p{margin:3px 0 0;font-size:14px;line-height:1.5}
+.lt.pi p{font-style:italic}
+.lt .q{font:400 12.5px/1.45 var(--label);color:var(--muted);margin-top:4px;overflow-wrap:anywhere}
+.lt .q b{font-weight:600;color:var(--ink-2)}
+.lt.hid{display:none}
+.more{border:0;background:none;padding:0;font:500 12.5px var(--label);color:var(--ink-2);text-decoration:underline;cursor:pointer;margin-top:3px}
+.clamp{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.add{margin-top:12px;display:grid;gap:6px}
+.add label{font:600 12.5px var(--label)}
+.add textarea{width:100%;height:60px;resize:none;border:1px solid var(--rule);background:var(--plate);padding:8px 10px;font:14px/1.45 var(--serif);color:var(--ink)}
+.add .row{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.add button{border:1px solid var(--ink);background:var(--ink);color:var(--plate);padding:5px 14px;font:600 12.5px var(--label)}
+.add button[disabled]{opacity:.35;cursor:not-allowed}
+.add small{font:400 12px/1.4 var(--label);color:var(--muted)}
+
+/* details opened in place */
+.inl>td{padding:0 0 14px!important;border-bottom:1px solid var(--rule)!important;background:transparent!important;cursor:default}
+.detail{background:var(--plate);border:1px solid var(--ink);padding:16px 18px;cursor:default}
+.dhead{display:flex;gap:16px;justify-content:space-between;align-items:start}
+.dgrid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:22px;margin-top:10px;align-items:start}
+.kv{width:100%;border-collapse:collapse;font-size:14px;line-height:1.45}
+.kv th{font:600 12.5px var(--label);color:var(--ink-2);text-align:left;vertical-align:top;padding:6px 10px 6px 0;width:130px;border-top:1px solid var(--hair)}
+.kv td{padding:6px 0;border-top:1px solid var(--hair)}
+.detail .kv th{vertical-align:top;border-bottom:0;padding:6px 10px 6px 0;font:600 12.5px var(--label);color:var(--ink-2);width:130px;background:none}
+.detail .kv td{vertical-align:top;border-bottom:0;padding:6px 0;width:auto;background:none!important;font-size:14px}
+.done{margin-top:8px;font:400 13.5px/1.5 var(--label);padding:8px 10px;border:1px solid var(--ink)}
+.done b{font-weight:600}
+.predrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.pred{font:500 12.5px var(--label);border:1px solid var(--rule);padding:1px 7px}
+.pred b{font-weight:700}
+
+/* experiments */
+.next{list-style:none;margin:0;padding:0;counter-reset:nx;border-top:1px solid var(--ink)}
+.next>li{counter-increment:nx;display:grid;grid-template-columns:44px minmax(0,1fr) 190px;gap:14px;padding:14px 0;border-bottom:1px solid var(--rule)}
+.next>li::before{content:counter(nx);font:600 30px/1 var(--serif);color:var(--ink)}
+.next>li.on{background:var(--accent-soft)}
+.next .inl{grid-column:1/-1}
+.next .t{font:600 17px/1.35 var(--serif);margin:0}
+.next .s{font-size:15px;color:var(--ink-2);margin:4px 0 0;max-width:68ch}
+.next .m{font:400 13px/1.5 var(--label);color:var(--ink-2)}
+.next .m b{font-weight:600;color:var(--ink)}
+.next button.open{border:0;background:none;padding:0;cursor:pointer;text-align:left;font:inherit}
+.next button.open:hover .t{text-decoration:underline}
+.matrix{width:100%;border-collapse:collapse;table-layout:fixed;min-width:820px}
+.matrix th{font:600 13px var(--label);text-align:left;padding:8px 10px;border-bottom:1px solid var(--ink);vertical-align:bottom}
+.matrix th small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.matrix td{padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+.matrix tr:not(.inl) td:first-child{width:220px}
+.matrix .hn{font:700 13px var(--label)}
+.matrix .hc{font:400 14px/1.4 var(--serif);color:var(--ink-2);margin-top:2px}
+.xc{display:block;width:100%;text-align:left;border:1px solid var(--rule);background:var(--plate);padding:6px 8px;margin:0 0 6px;cursor:pointer;
+  font:400 13.5px/1.35 var(--serif);transition:border-color .12s,background .12s}
+.xc .xi{font:600 11.5px var(--label);color:var(--muted);display:flex;gap:6px;justify-content:space-between}
+.xc.shared{border-style:double;border-width:3px}
+.xc:hover,.xc.hot{border-color:var(--sel);background:var(--sel-wash)}
+.xc.on{border-color:var(--sel);box-shadow:inset 0 0 0 1px var(--sel)}
+.path{margin-top:18px}
+.path>details{border-top:1px solid var(--rule)}
+.path>details>summary{cursor:pointer;padding:12px 0;font:600 16px var(--serif)}
+.path>details>summary small{font:400 13px var(--label);color:var(--muted);margin-left:8px}
+.flow{list-style:none;margin:0 0 14px;padding:0 0 0 14px;border-left:2px solid var(--ink)}
+.flow>li{position:relative;padding:8px 0 10px 18px}
+.flow>li::before{content:"";position:absolute;left:-21px;top:14px;width:12px;height:12px;border-radius:50%;background:var(--plate);border:2px solid var(--ink)}
+.flow .t{font:600 15.5px/1.35 var(--serif)}
+.flow .br{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 18px;font:400 13px/1.45 var(--label);color:var(--ink-2);margin-top:5px}
+.flow .br b{color:var(--ink);font-weight:600}
+
+/* treatments */
+.hyp{margin-top:26px}
+.hh{font:600 20px/1.25 var(--serif);margin:0 0 8px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.hh span{font-weight:400}
+.hh small{font:400 13px var(--label);color:var(--muted)}
+.dtab{width:100%;border-collapse:collapse;min-width:820px}
+.dtab th{font:600 12.5px var(--label);color:var(--ink-2);text-align:left;padding:7px 8px;border-bottom:1px solid var(--ink);vertical-align:bottom}
+.dtab td{padding:9px 8px;border-bottom:1px solid var(--rule);vertical-align:top;font-size:14.5px;line-height:1.4}
+.dtab tr[data-dd]{cursor:pointer}.dtab tr[data-dd]:hover td,.dtab tr.on td{background:var(--accent-soft)}
+.dtab .dn{font:600 15.5px var(--serif)}
+.dtab small{display:block;font:400 12.5px/1.4 var(--label);color:var(--muted)}
+.also{display:inline-block;min-width:20px;height:20px;border:1px solid var(--ink);font:600 11.5px/18px var(--label);text-align:center;margin-right:3px}
+.bets{list-style:none;margin:0;padding:0;font:400 13px/1.4 var(--label)}
+.bets li{display:flex;gap:6px;align-items:baseline}
+.bets svg{flex:none}
+.chart{background:var(--plate);border:1px solid var(--rule);padding:14px 16px}
+.chart>svg{display:block;width:100%;height:auto;font-family:var(--label)}
+.dg{cursor:pointer}
+.dg:hover circle.d{stroke:var(--sel);stroke-width:3}
+
+/* reasoning */
+.stagebar{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));border-top:1px solid var(--ink);border-bottom:1px solid var(--ink);overflow-x:auto}
+.stg{border:0;border-right:1px solid var(--rule);background:transparent;text-align:left;padding:12px 10px;cursor:pointer;min-width:120px}
+.stg:last-child{border-right:0}
+.stg:hover{background:var(--accent-soft)}
+.stg[aria-pressed="true"]{background:var(--plate);box-shadow:inset 0 -3px var(--sel)}
+.stg .sn{font:600 26px/1 var(--serif)}
+.stg .sm{font:600 13.5px/1.25 var(--label);margin-top:6px}
+.stg .sc2{font:400 12px var(--label);color:var(--muted);margin-top:3px}
+.vdots{display:flex;gap:3px;flex-wrap:wrap;margin-top:7px}
+.vdots i{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--ink-2)}
+.vdots i.p{background:var(--ink-2)}
+.stagebody{padding-top:20px}
+.asks{font:italic 400 19px/1.45 var(--serif);color:var(--ink-2);margin:0 0 18px;max-width:64ch}
+.cols3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+.cols3 h4,.rev h4{font:700 13px var(--label);margin:0 0 6px}
+.qrow{border-top:1px solid var(--hair);padding:10px 0}
+.qrow .qh{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;font:600 13px var(--label)}
+.qrow .qh .k{font-weight:400;color:var(--muted)}
+.qrow .qt{font-size:15px;margin:3px 0 0}
+.qrow .qa{font-size:14.5px;color:var(--ink-2);margin:4px 0 0}
+.verd{font:600 12px var(--label);padding:0 6px;border:1px solid currentColor}
+.verd.observed,.verd.pass{color:var(--g1)} .verd.weak,.verd.revise,.verd.speculative{color:var(--sel)}
+.rev{border-top:1px solid var(--ink);margin-top:26px;padding-top:12px}
+.rv{padding:12px 0;border-bottom:1px solid var(--rule)}
+.rv .rh2{font:600 13px var(--label);display:flex;gap:10px;align-items:baseline}
+.rv p{margin:4px 0 6px;font-size:15px;line-height:1.55;max-width:80ch}
+.rv ol{margin:4px 0 0;padding-left:22px;font-size:14.5px;line-height:1.5;color:var(--ink-2);max-width:80ch}
+.merge{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) 1.2fr;gap:18px;align-items:start}
+.merge .col h4{font:700 13px var(--label);margin:0 0 8px}
+.merge .ac{border:1px solid var(--rule);background:var(--plate);padding:7px 9px;margin-bottom:8px;font-size:13.5px;line-height:1.35}
+.merge .ac b{font:600 12px var(--label);display:block;color:var(--muted)}
+.merge .ac.hot{border-color:var(--sel);background:var(--sel-wash)}
+.merge .cc{border:1px solid var(--ink);background:var(--plate);padding:8px 10px;margin-bottom:8px;font-size:14px;line-height:1.35;cursor:pointer}
+.merge .cc b{font:700 12.5px var(--label);display:block}
+.evsearch{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px}
+.evsearch input,.evsearch select{border:1px solid var(--rule);background:var(--plate);padding:6px 10px;font:14px var(--label);color:var(--ink)}
+.evsearch input{flex:1;min-width:200px}
+.evl .er{border-top:1px solid var(--hair);padding:9px 0}
+.evl .er .eh{font:600 13px var(--label);display:flex;gap:10px;flex-wrap:wrap}
+.evl .er .eh span{font-weight:400;color:var(--muted)}
+pre.sum{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:6px 0 0;color:var(--ink-2);max-height:260px;overflow:auto}
+
+/* drawer */
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(520px,100%);z-index:60;background:var(--plate);border-left:1px solid var(--ink);
+  box-shadow:-10px 0 30px rgba(0,0,0,.12);padding:calc(18px + env(safe-area-inset-top,0px)) max(22px,env(safe-area-inset-right,0px)) 24px 22px;overflow:auto}
+.drawer .x{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:max(14px,env(safe-area-inset-right,0px));border:1px solid var(--rule);background:var(--plate);width:30px;height:30px;cursor:pointer;font:500 16px var(--label)}
+.drawer h3{font:600 20px var(--serif);margin:4px 0 2px}
+.drawer .args{font:400 13px var(--label);color:var(--muted);overflow-wrap:anywhere}
+.drawer pre{white-space:pre-wrap;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:12px 0;color:var(--ink)}
+
+/* gene card */
+.gcard{position:fixed;z-index:70;width:290px;background:var(--plate);border:1px solid var(--ink);padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.16);font:400 13px/1.45 var(--label)}
+.gcard .gn{font:italic 600 17px var(--serif)}
+.gcard ul{margin:6px 0;padding-left:16px;color:var(--ink-2)}
+.gcard .lk{display:flex;gap:12px;flex-wrap:wrap}
+[data-gs]{cursor:help;text-decoration:underline dotted var(--muted);text-underline-offset:3px}
+.foot{padding-block:24px 40px;font:400 12.5px var(--label);color:var(--muted);border-top:1px solid var(--rule);margin-top:40px}
+.foot .wrap{display:flex;gap:20px;justify-content:space-between;flex-wrap:wrap}
+[data-view][hidden]{display:none!important}
+
+@media (max-width:1180px){
+  .article{grid-template-columns:1fr}
+  .margin{border-left:0;padding-left:0;margin-top:34px}
+  .corr{position:static}
+  .letters{max-height:520px}
+  .merge{grid-template-columns:1fr 1fr}
+}
+@media (max-width:860px){
+  .plate{grid-template-columns:1fr;padding:16px}
+  .next>li{grid-template-columns:36px minmax(0,1fr)}.next .m{grid-column:2}
+  .cols3,.dgrid{grid-template-columns:1fr}
+  .oc>summary{grid-template-columns:56px minmax(0,1fr) 20px}.oc .fs{display:none}
+  .flow .br{grid-template-columns:1fr}
+}
+@media (max-width:520px){
+  .wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .toc{margin-left:0}.toc .for{display:none}
+  .strips{grid-template-columns:1fr}
+  .stand{font-size:18px}
+  .merge{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+<!--BODY-->
+<!--SPRITE-->
+<!--FIGS-->
+
+<header class="head">
+  <div class="wrap">
+    <a class="mast" href="#overview"><!--MARK-->Mechanist</a>
+    <span class="rh"><!--RUNNINGHEAD--></span>
+    <!--BACK-->
+    <nav class="toc" aria-label="Sections">
+      <a href="#overview" data-nav="overview">Overview<span class="for">for everyone</span></a>
+      <a href="#experiments" data-nav="experiments">Experiments<span class="for">for the bench</span></a>
+      <a href="#treatments" data-nav="treatments">Treatments<span class="for">for the clinic</span></a>
+      <a href="#reasoning" data-nav="reasoning">Reasoning<span class="for">every decision</span></a>
+    </nav>
+    <div class="theme" id="theme" role="group" aria-label="Colour theme">
+      <button type="button" data-t="auto" title="Match the system" aria-label="Match the system theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.4"/><path d="M8 2.6a5.4 5.4 0 010 10.8z" fill="currentColor" stroke="none"/></svg></button>
+      <button type="button" data-t="light" title="Light" aria-label="Light theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.8"/><path d="M8 1.8v1.4M8 12.8v1.4M1.8 8h1.4M12.8 8h1.4M3.6 3.6l1 1M11.4 11.4l1 1M3.6 12.4l1-1M11.4 4.6l1-1"/></svg></button>
+      <button type="button" data-t="dark" title="Dark" aria-label="Dark theme"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M12.8 9.6A5.2 5.2 0 016.4 3.2a5.2 5.2 0 106.4 6.4z"/></svg></button>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== OVERVIEW ===================== -->
+<div class="wrap" data-view="overview">
+  <div class="article">
+    <article class="main">
+      <h1 id="q"></h1>
+      <p class="stand" id="ans"></p>
+      <p class="byline" id="byline"></p>
+      <div class="plate" id="lead"></div>
+      <p class="caption" id="caption"></p>
+      <div class="colo" id="colo"></div>
+      <h2 class="sec">The other circuits</h2>
+      <p class="secsub">Each one is drawn and linked the same way. Open a circuit to explore its steps and the measurements behind them.</p>
+      <div class="others" id="others"></div>
+    </article>
+    <aside class="margin">
+      <div class="brief"><div class="mhead">In brief</div><dl id="brief"></dl></div>
+      <div style="margin-top:30px"><div class="mhead">Where to go next<small>Each section is written for a different reader.</small></div>
+        <ul class="lst" id="where"></ul></div>
+    </aside>
+  </div>
+</div>
+
+<!-- ===================== EXPERIMENTS ===================== -->
+<div class="wrap" data-view="experiments" hidden>
+  <div class="article">
+    <article class="main">
+      <h1 class="view">What to do next at the bench</h1>
+      <p class="stand" id="xstand"></p>
+      <h2 class="sec">Start here</h2>
+      <p class="secsub">The first experiment of each hypothesis's plan, cheapest first. Each one decides whether the rest of that plan is worth running. Select one to open its design here.</p>
+      <ol class="next" id="startHere"></ol>
+      <h2 class="sec">The plan by hypothesis</h2>
+      <p class="secsub">Rows are hypotheses, columns the question each experiment answers, read left to right. A double-bordered experiment serves several hypotheses; point at it to see where else it appears. Select any experiment to open its full design under that row.</p>
+      <div class="tbw"><table class="matrix" id="matrix"></table></div>
+      <div class="path" id="paths"></div>
+      <div id="xnt"></div>
+    </article>
+    <aside class="margin"><div id="xcorr" class="corr"></div></aside>
+  </div>
+</div>
+
+<!-- ===================== TREATMENTS ===================== -->
+<div class="wrap" data-view="treatments" hidden>
+  <div class="article">
+    <article class="main">
+      <h1 class="view">Which drugs could act on each hypothesis</h1>
+      <p class="stand">Research hypotheses for discussion, not treatment advice. Drug facts (approval, mechanism, black-box warnings) come from Open Targets; how sure each drug is to break the circuits is computed from the circuits it acts in.</p>
+      <h2 class="sec">All drugs at once: how sure, and how ready</h2>
+      <p class="secsub">Across: the share of the circuits' support that sits on steps the drug acts on, so a drug further right breaks the circuits whichever of them is right. Up: how close the drug is to use in this disease. Select a drug to jump to it.</p>
+      <div class="chart" id="dchart"></div>
+      <h2 class="sec">Drugs by hypothesis</h2>
+      <p class="secsub">Drugs grouped by the hypothesis whose steps they act on, best-supported hypothesis first. Within a hypothesis, drugs closest to use come first. A drug that acts in several hypotheses appears under each, with the others listed. Select a drug to open its full case under its row.</p>
+      <div id="byhyp"></div>
+    </article>
+    <aside class="margin"><div id="dcorr" class="corr"></div></aside>
+  </div>
+</div>
+
+<!-- ===================== REASONING ===================== -->
+<div class="wrap" data-view="reasoning" hidden>
+  <div style="padding-top:38px">
+    <h1 class="view">How Mechanist reached this, step by step</h1>
+    <p class="stand">Every stage of the run, what it asked, what it produced, how the PI reviewed it, and every result it cites. Select a stage; select any result id to read the result itself.</p>
+    <div class="stagebar" id="stagebar"></div>
+    <div class="stagebody" id="stagebody"></div>
+    <h2 class="sec">Every result the team produced</h2>
+    <p class="secsub">Data queries, literature searches and drug lookups, as the tools returned them.</p>
+    <div class="evsearch"><input id="evq" type="search" placeholder="Search results: a gene, a cell type, a PMID" aria-label="Search results"><select id="evt" aria-label="Tool"></select></div>
+    <div class="evl" id="evl"></div>
+  </div>
+</div>
+
+<footer class="foot"><div class="wrap">
+  <span>Mechanist is a separate project that reads the skinpipe outputs of a study. Cell illustrations: NIH BioArt.</span>
+  <span id="runline"></span>
+</div></footer>
+
+<aside class="drawer" id="drawer" hidden aria-label="Result"></aside>
+<div class="gcard" id="gcard" hidden></div>
+
+<script>
+const D = /*DATA*/;
+const $ = s => document.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const cap = s => s ? s.charAt(0) + s.slice(1).toLowerCase() : "";
+const WORD = {observed:"Seen in this data", likely:"Inferred, not tested", speculative:"Speculative", analogy:"Published elsewhere"};
+const GROUPS = Object.keys(D.groups);
+const GCOL = Object.fromEntries(GROUPS.map((g, i) => [g, `var(--g${Math.min(i, 3)})`]));
+const QWORD = {presence:"Is it there?", rule_out:"Could it be ruled out fast?", mechanism:"Does the mechanism work?", in_vivo:"Does it hold in a living system?"};
+const QSUB = {presence:"protein, right cells, disease vs comparators", rule_out:"cheap and quick", mechanism:"give the signal, block it", in_vivo:"an animal or human model"};
+const TIER = {in_data:"this dataset", archived_tissue:"archived tissue", spatial:"spatial", ex_vivo:"ex vivo", in_vitro:"in vitro", in_vivo:"in vivo", cohort:"new cohort"};
+const TORDER = ["in_data","archived_tissue","spatial","ex_vivo","in_vitro","in_vivo","cohort"];
+const gene = g => `<i class="g" data-gs="${esc(g)}" tabindex="0">${esc(g)}</i>`;
+const line = (w, da, col = "var(--ink)") => `<svg width="30" height="8" aria-hidden="true"><line x1="1" y1="4" x2="29" y2="4" stroke="${col}" stroke-width="${w}" ${da?`stroke-dasharray="${da}"`:""}/></svg>`;
+const sline = s => line(s==="observed"?3.2:1.6, s==="speculative"?"6 4":s==="analogy"?"2 4":"");
+const evGlyph = s => `<svg width="22" height="8" aria-hidden="true"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--ink)" stroke-width="${s==="observed"?3:1.5}" ${s==="speculative"?'stroke-dasharray="5 3"':s==="analogy"?'stroke-dasharray="2 3"':""}/></svg>`;
+const C = Object.fromEntries(D.circuits.map(c => [c.rank, c]));
+const short = r => C[r] ? C[r].short : `circuit ${r}`;
+function linkIds(t){ return esc(t).replace(/\b(R\d{3,5})\b/g, (m, id) => D.results[id] ? `<button type="button" class="rid" data-rid="${id}">${id}</button>` : m); }
+const ridBtns = ids => (ids || []).filter(i => D.results[i]).map(i => `<button type="button" class="rid" data-rid="${i}">${i}</button>`).join("");
+
+/* ================= theme: the same choice as the study portal (stored under clp:theme) ================= */
+(function(){ const seg = $$("#theme button");
+  const now = () => { try { const v = JSON.parse(localStorage.getItem("clp:theme")); return v === "light" || v === "dark" ? v : "auto"; } catch (e) { return "auto"; } };
+  function apply(t, save){ const r = document.documentElement; if (t === "auto") delete r.dataset.theme; else r.dataset.theme = t;
+    if (save) { try { t === "auto" ? localStorage.removeItem("clp:theme") : localStorage.setItem("clp:theme", JSON.stringify(t)); } catch (e) {} }
+    seg.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.t === t))); }
+  seg.forEach(b => b.addEventListener("click", () => apply(b.dataset.t, true)));
+  addEventListener("storage", e => { if (e.key === "clp:theme") apply(now(), false); });
+  apply(now(), false); })();
+
+/* ================= router ================= */
+const VIEWS = ["overview","experiments","treatments","reasoning"];
+function route(){ const h = (location.hash || "#overview").slice(1); const v = VIEWS.includes(h) ? h : "overview";
+  $$("[data-view]").forEach(el => el.hidden = el.dataset.view !== v);
+  $$("[data-nav]").forEach(a => a.dataset.nav === v ? a.setAttribute("aria-current","page") : a.removeAttribute("aria-current"));
+  if (VIEWS.includes(h)) scrollTo(0, 0); }
+addEventListener("hashchange", route); route();
+function go(view, then){ if (location.hash !== "#" + view) { location.hash = view; setTimeout(then, 40); } else then(); }
+
+/* ================= strips ================= */
+function strip(st){
+  const W = 176, rowH = 15, L = 44, R = 14, H = rowH * GROUPS.length + 20;
+  const vals = Object.values(st.vals).filter(v => v != null), mx = Math.max(10, Math.ceil(Math.max(...vals) / 10) * 10);
+  const x = v => L + (W - L - R) * v / mx, F = 'font-family="IBM Plex Sans Condensed, Arial Narrow, sans-serif"', base = rowH * GROUPS.length + 4;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(st.gene)} in ${esc(st.lin)}, % of cells by sample"><line x1="${L}" y1="${base}" x2="${W-R}" y2="${base}" stroke="var(--rule)"/>`;
+  [0, mx/2, mx].forEach(t => s += `<line x1="${x(t)}" y1="${base}" x2="${x(t)}" y2="${base+4}" stroke="var(--muted)"/><text x="${x(t)}" y="${base+14}" font-size="9.5" text-anchor="middle" fill="var(--muted)" ${F}>${t}${t===mx?"%":""}</text>`);
+  GROUPS.forEach((g, r) => { const y = 9 + r * rowH;
+    s += `<text x="0" y="${y+4}" font-size="10.5" fill="var(--ink-2)" ${F}>${esc(g.length > 8 ? g.slice(0, 7) + "." : g)}</text><line x1="${L}" y1="${y}" x2="${W-R}" y2="${y}" stroke="var(--hair)"/>`;
+    D.groups[g].forEach(smp => { const v = st.vals[smp]; if (v == null) return;
+      s += `<circle cx="${x(v)}" cy="${y}" r="${r === 0 ? 5 : 4.2}" fill="${GCOL[g]}" stroke="var(--plate)" stroke-width="1"><title>${esc(smp)}: ${v.toFixed(1)}%</title></circle>`; }); });
+  return s + "</svg>";
+}
+
+/* ================= a circuit plate (used for every circuit) ================= */
+function linksFor(rank, step){
+  const ms = Object.values(D.missing).filter(m => m.kind === "edge" && m.circuits.includes(rank) && m.edge === step.i).map(m => m.id);
+  return {ms, exps: D.experiments.filter(e => (e.tests || []).some(t => ms.includes(t)) || (e.confirms || []).some(g => step.genes.includes(g))),
+          drugs: D.therapy.filter(d => (d.depends_on || []).some(t => ms.includes(t)) || step.genes.includes(d.target))};
+}
+function plate(root, c){
+  const tpl = document.getElementById("fig-" + c.rank);
+  root.innerHTML = `<div class="pnl"><div class="pl">A <span>${c.rank === 1 ? `Lead circuit, proposed by ${esc(c.support)} attempts` : `Circuit ${c.rank}, proposed by ${esc(c.support)} attempts`}</span></div>
+    <div class="fa"></div><div class="steps"><span class="k">Steps</span>${c.steps.map(s => `<button type="button" class="${s.status}" data-s="${s.i}" aria-pressed="false" title="${esc(WORD[s.status]||s.status)}: ${esc(s.source)} → ${esc(s.target)}">${s.i}</button>`).join("")}</div>
+    <div class="legend"><span>${line(3.2)}seen in this data</span><span>${line(1.6)}inferred</span><span>${line(1.6,"6 4")}speculative</span><span>${line(1.6,"2 4")}published elsewhere</span></div></div>
+    <div class="pnl pb" aria-live="polite"></div>`;
+  const fa = root.querySelector(".fa"), pb = root.querySelector(".pb");
+  if (tpl) fa.appendChild(tpl.content.cloneNode(true)); else fa.innerHTML = `<p class="quiet">This circuit names no cells to draw: ${esc(c.steps.map(s => s.source + " → " + s.target).join("; "))}.</p>`;
+  const fig = fa.querySelector("svg.cellfig");
+  const byStep = Object.fromEntries(c.steps.map(s => [s.i, s]));
+  function mark(ids, cell){ const set = new Set(ids), arws = new Set(), cells = new Set(cell ? [cell] : []);
+    c.steps.forEach(s => { if (set.has(s.i)) { s.arrows.forEach(a => arws.add(a)); s.cells.forEach(x => cells.add(x)); } });
+    $$(".arw", root).forEach(g => g.classList.toggle("sel", arws.has(+g.dataset.a)));
+    $$(".ring", root).forEach(x => x.classList.toggle("sel", cells.has(x.dataset.c)));
+    fig?.classList.toggle("dimfig", arws.size > 0);
+    $$(".steps button", root).forEach(b => b.setAttribute("aria-pressed", String(set.has(+b.dataset.s)))); }
+  function showStep(i){ const s = byStep[i]; if (!s) return; mark([i]);
+    const {ms, exps, drugs} = linksFor(c.rank, s);
+    const strips = s.strips.length ? `<div class="strips">${s.strips.map(st => `<figure class="strip"><figcaption>${gene(st.gene)}<span>${esc(st.lin)}</span><button type="button" class="rid" data-rid="${st.rid}">${st.rid}</button></figcaption>${strip(st)}<div class="vd ${st.verdict.startsWith("every") ? "hold" : ""}">${esc(st.verdict)}</div></figure>`).join("")}</div>
+      <div class="legend">${GROUPS.map(g => `<span><i class="dotk" style="background:${GCOL[g]}"></i>${esc(g)}</span>`).join("")}<span>% of the lineage's cells expressing, one dot per sample</span></div>`
+      : `<p class="quiet">No per-sample measurement stands behind this step${s.ids.length ? "; it rests on the results below" : ", which rests on reasoning alone"}.</p>`;
+    pb.innerHTML = `<div class="pl">B <span>Step ${s.i} of ${c.steps.length}</span></div>
+      <div class="ev">${sline(s.status)}${esc(WORD[s.status]||s.status)}${ms.length ? ` · open question ${ms.join(", ")}` : ""}</div>
+      <h3 class="sh">${esc(s.source)} → ${esc(s.target)}</h3>${s.via ? `<p class="via">via ${esc(s.via)}</p>` : ""}
+      ${strips}${s.note ? `<p class="found"><b>Team note.</b> ${linkIds(s.note)}</p>` : ""}
+      ${s.ids.length ? `<div class="ids">${ridBtns(s.ids)}${s.ids.filter(i => !D.results[i]).map(i => `<span class="lab" style="color:var(--muted);font-size:12px">${esc(i)}</span>`).join("")}</div>` : ""}
+      <div class="sub2">Experiments that would test it</div>${exps.length ? `<ul class="lst">${exps.slice(0,3).map(x => `<li><span class="n">${esc(x.id)}</span><div><a href="#experiments" data-open="${esc(x.id)}">${esc(x.title)}</a><small>${esc(QWORD[x.question] || x.kind || "")} · ${esc(TIER[x.tier] || x.setting || "")}</small></div></li>`).join("")}</ul>` : `<p class="quiet">No experiment in the plan addresses this step.</p>`}
+      <div class="sub2">Drugs that act on it</div>${drugs.length ? `<ul class="lst">${drugs.map(d => `<li><span class="n">#${d.rank}</span><div><a href="#treatments" data-dd="${esc(d.drug)}">${esc(cap(d.drug))}</a> ${gene(d.target)}${d.boxed ? `<span class="warnw">black-box warning</span>` : ""}<small>${esc(d.level)}</small></div></li>`).join("")}</ul>` : `<p class="quiet">No drug in the panel acts on this step.</p>`}`; }
+  function showCell(id){ const cell = c.cells[id]; if (!cell) return;
+    const touched = c.steps.filter(s => s.cells.includes(id) || s.arrows.some(a => (c.ends[a] || []).includes(id)));
+    mark(touched.map(s => s.i), id);
+    pb.innerHTML = `<div class="pl">B <span>Cell</span></div><h3 class="sh">${esc(cell.label)}</h3>${cell.sub.length ? `<p class="via">Makes ${cell.sub.map(gene).join(", ")}</p>` : ""}
+      <div class="sub2">Steps through this cell</div><ul class="lst">${touched.map(s => `<li><span class="n">${s.i}</span><div><button type="button" class="rid" style="font:inherit;text-align:left" data-goto="${s.i}">${esc(s.source)} → ${esc(s.target)}</button><small>${esc(WORD[s.status]||s.status)}</small></div></li>`).join("")}</ul>`; }
+  root.addEventListener("click", ev => {
+    const a = ev.target.closest(".arw"), ce = ev.target.closest(".chit"), b = ev.target.closest(".steps button"), g = ev.target.closest("[data-goto]");
+    if (a) { const st = c.steps.filter(s => s.arrows.includes(+a.dataset.a)); if (st.length) { showStep(st[0].i); mark(st.map(s => s.i)); } }
+    else if (ce) showCell(ce.dataset.c); else if (b) showStep(+b.dataset.s); else if (g) showStep(+g.dataset.goto); });
+  root.addEventListener("keydown", ev => { if ((ev.key === "Enter" || ev.key === " ") && ev.target.closest?.(".chit")) { ev.preventDefault(); showCell(ev.target.dataset.c); } });
+  const first = c.steps.find(s => s.strips.length) || c.steps[0]; if (first) showStep(first.i);
+}
+
+/* ================= overview ================= */
+$("#q").textContent = D.page.question || "";
+$("#ans").textContent = D.page.answer || "";
+$("#brief").innerHTML = (D.page.points || []).map(p => `<dt>${esc(p.label)}</dt><dd>${esc(p.text)}</dd>`).join("");
+$("#byline").innerHTML = `A working hypothesis from <b>${D.counts.attempts} independent attempt${D.counts.attempts > 1 ? "s" : ""}</b> and a reviewing PI agent, built from this study's single-cell data and the literature they retrieved. Every step says whether it was seen in the data, inferred, or argued; <a href="#reasoning">the reasoning section</a> shows each decision.`;
+plate($("#lead"), C[1]);
+const nOf = g => D.groups[g].length;
+$("#caption").innerHTML = `<b>Figure 1. ${esc(C[1].short)}.</b> <b>(A)</b> The cells of the lead circuit. Arrows are signals between cells, labelled with their mediators; genes under a cell are what it makes. Line weight is the evidence: heavy, seen in this data; thin, inferred but untested; dashed, speculative; dotted, published elsewhere. Select a cell, an arrow or a step number. <b>(B)</b> The selected step: the share of cells expressing each gene in every sample, the result ids behind it, the experiments that would test it and the drugs that act on it. n = ${GROUPS.map(g => `${nOf(g)} ${esc(g)}`).join(", ")} samples; with ${nOf(GROUPS[0])} disease samples a step can be plausible, not proven.`;
+$("#colo").innerHTML = `<span><b>${D.counts.attempts}</b> independent attempts</span><span><b>${D.counts.gates}</b> PI reviews</span><span><b>${D.counts.tools}</b> tool results</span><span><b>${D.counts.lit}</b> literature searches</span><span><b>${D.circuits.length}</b> circuits after merging</span>`;
+$("#others").innerHTML = D.circuits.slice(1).map(c => { const [k, m] = c.support.split(" of ").map(Number);
+  const tpl = document.getElementById("fig-" + c.rank);
+  return `<details class="oc" data-r="${c.rank}"><summary><span><span class="fn">Figure ${c.rank}</span>${tpl ? `<span class="thumb" aria-hidden="true">${tpl.innerHTML.replace(/<svg /, '<svg preserveAspectRatio="xMidYMid meet" ').replace(/<text[\s\S]*?<\/text>/g, "")}</span>` : ""}</span>
+    <span class="ft">${esc(c.short)}<small>${esc((c.summary || "").split(/(?<=\.)\s/)[0])}</small></span><span class="fs">${k} of ${m} attempts<br>${c.steps.length} step${c.steps.length > 1 ? "s" : ""}</span><span class="chev" aria-hidden="true">›</span></summary><div class="body"><div class="plate"></div></div></details>`; }).join("");
+$$("#others .oc").forEach(d => d.addEventListener("toggle", () => { if (d.open && !d.dataset.done) { d.dataset.done = 1; plate(d.querySelector(".plate"), C[+d.dataset.r]); } }));
+$("#where").innerHTML = [["Experiments","For the bench: what to do first, and how each hypothesis's experiments build on each other.","experiments"],
+  ["Treatments","For the clinic: the drugs that could act on each hypothesis, and what each depends on.","treatments"],
+  ["Reasoning","For anyone checking the work: every stage, review and result.","reasoning"]].map(([t, s, h]) => `<li><span class="n">→</span><div><a href="#${h}">${t}</a><small>${s}</small></div></li>`).join("");
+
+/* ================= details opened in place ================= */
+function closeInline(){ $$(".inl").forEach(x => x.remove()); $$(".xc.on,.dtab tr.on,.next>li.on").forEach(x => x.classList.remove("on")); }
+document.addEventListener("click", ev => { if (ev.target.closest(".inl .close")) closeInline(); });
+
+/* ================= experiments ================= */
+const E = Object.fromEntries(D.experiments.map(e => [e.id, e]));
+const progs = D.programmes || [];
+const tierRank = t => { const i = TORDER.indexOf(t); return i < 0 ? 9 : i; };
+$("#xstand").textContent = progs.length
+  ? `${D.experiments.length} experiments across ${progs.length} hypotheses. Each hypothesis has a plan that starts by checking the molecules are really there, tries to rule it out cheaply, then tests whether its mechanism works and finally whether it holds in a living system.`
+  : `${D.experiments.length} experiments. This run predates the plan by hypothesis.`;
+const firsts = [], seenF = new Set();
+progs.forEach(p => { const st = p.sequence[0]; if (st && !seenF.has(st.id)) { seenF.add(st.id); firsts.push({id: st.id, prog: p, step: st}); } });
+firsts.sort((a, b) => tierRank(E[a.id]?.tier) - tierRank(E[b.id]?.tier));
+$("#startHere").innerHTML = firsts.map(f => { const e = E[f.id]; if (!e) return "";
+  const serves = (e.in_programmes || []).length ? e.in_programmes : [f.prog.circuit];
+  return `<li><button type="button" class="open" data-open="${e.id}"><p class="t">${esc(e.title)}</p><p class="s">${esc(e.shows || "")}</p></button>
+    <div class="m"><b>${esc(QWORD[e.question] || "")}</b><br>${esc(TIER[e.tier] || e.setting || "")}<br>Serves hypothesis ${serves.join(", ")}${(e.done_before || []).length ? `<br><b>Done before</b>: replicate or cite` : ""}${f.step.if_no ? `<br>If not: ${esc(f.step.if_no)}` : ""}</div></li>`; }).join("") || `<li><div class="s">No plan per hypothesis in this run.</div></li>`;
+const QS = ["presence","rule_out","mechanism","in_vivo"];
+$("#matrix").innerHTML = `<tr><th>Hypothesis</th>${QS.map(q => `<th>${QWORD[q]}<small>${QSUB[q]}</small></th>`).join("")}</tr>` +
+  progs.map(p => `<tr><td><div class="hn">Hypothesis ${p.circuit}</div><div class="hc">${esc(short(p.circuit))}</div></td>${QS.map(q =>
+    `<td>${p.sequence.map((st, k) => ({st, k})).filter(({st}) => E[st.id]?.question === q).map(({st, k}) => { const e = E[st.id];
+      return `<button type="button" class="xc ${(e.in_programmes||[]).length > 1 ? "shared" : ""}" data-open="${e.id}"><span class="xi"><span>${esc(e.id)} · step ${k+1}</span><span>${esc(TIER[e.tier] || "")}</span></span>${esc(e.title)}</button>`; }).join("")}</td>`).join("")}</tr>`).join("");
+$("#paths").innerHTML = progs.map(p => `<details><summary>Hypothesis ${p.circuit}: ${esc(short(p.circuit))}<small>${p.sequence.length} experiments, in order</small></summary>
+  <p class="secsub"><b>Sets out to prove:</b> ${esc(p.claim)}</p><ol class="flow">${p.sequence.map(st => { const e = E[st.id]; if (!e) return "";
+    return `<li><div class="lab" style="font-size:12px;color:var(--muted)">${esc(QWORD[e.question] || "")} · ${esc(TIER[e.tier] || "")} · ${esc(e.id)}${st.adapt ? " · adapted here" : ""}</div>
+      <div class="t"><button type="button" class="open" style="border:0;background:none;padding:0;cursor:pointer;text-align:left;font:inherit;text-decoration:underline;text-underline-offset:3px" data-open="${e.id}">${esc(e.title)}</button></div>${st.why_now ? `<div class="lab" style="font-size:13px;color:var(--ink-2);margin-top:3px">${esc(st.why_now)}</div>` : ""}
+      ${st.adapt ? `<div class="lab" style="font-size:13px;margin-top:3px"><b>Adapted:</b> ${esc(st.adapt)}</div>` : ""}
+      <div class="br">${st.if_yes ? `<div><b>If it works:</b> ${esc(st.if_yes)}</div>` : ""}${st.if_no ? `<div><b>If not:</b> ${esc(st.if_no)}</div>` : ""}</div></li>`; }).join("")}</ol></details>`).join("");
+$("#xnt").innerHTML = D.not_testable.length ? `<h2 class="sec">What no feasible experiment can test</h2><ul class="lst">${D.not_testable.map(x => `<li><span class="n">${esc(x.id)}</span><div>${esc(D.missing[x.id]?.text || "")}<small>${esc(x.why)}</small></div></li>`).join("")}</ul>` : "";
+function expHTML(e){ const steps = (e.tests || []).map(m => D.missing[m]).filter(Boolean);
+  return `<div class="detail"><div class="dhead"><div><div class="lab" style="font-size:12.5px;color:var(--muted)">${esc(e.id)} · ${esc(QWORD[e.question] || e.kind || "")} · ${esc(TIER[e.tier] || e.setting || "")}${(e.in_programmes||[]).length ? ` · serves hypothesis ${e.in_programmes.join(", ")}` : ""}</div>
+    <h3 class="sh">${esc(e.title)}</h3></div><button type="button" class="btn close">Close</button></div>
+    ${e.shows ? `<p style="margin:4px 0 6px;font-size:15px;max-width:75ch">${esc(e.shows)}</p>` : ""}${e.adds ? `<p class="lab" style="font-size:13.5px;color:var(--ink-2);margin:0 0 8px;max-width:90ch"><b>New:</b> ${esc(e.adds)}</p>` : ""}
+    ${(e.done_before||[]).map(d => `<div class="done"><b>Done before.</b> ${esc(d.what || d.title)} <a href="https://pubmed.ncbi.nlm.nih.gov/${esc(d.pmid)}/" target="_blank" rel="noopener">PMID ${esc(d.pmid)}</a>${d.year ? ` (${esc(d.year)})` : ""}. Replicate in this disease, or cite.</div>`).join("")}
+    <div class="dgrid"><table class="kv">${[["Model","model"],["Perturbation","perturbation"],["Readout","readout"],["Controls","controls"],["Against the hypothesis if","refutes_if"],["Protein vs RNA","rna_vs_protein"],["Could mislead","caveat"],["Feasibility","feasibility"]].filter(([,k]) => e[k]).map(([l,k]) => `<tr><th>${l}</th><td>${esc(e[k])}</td></tr>`).join("")}</table>
+    <div>${(e.predictions||[]).length ? `<div class="sub2" style="margin-top:0">What each circuit predicts</div><div class="predrow">${e.predictions.filter(p => p.outcome !== "not addressed").map(p => `<span class="pred" title="${esc(p.why)}">Circuit ${p.circuit}: <b>${esc(p.outcome)}</b></span>`).join("")}</div>` : ""}
+    ${steps.length ? `<div class="sub2">Circuit steps it tests</div><ul class="lst">${steps.map(m => `<li><span class="n">${esc(m.id)}</span><div>${esc(m.text)}<small>${esc(WORD[m.status] || m.status || m.kind)}</small></div></li>`).join("")}</ul>` : ""}
+    ${(e.precedent||[]).length ? `<div class="sub2">Built on</div><ul class="lst">${e.precedent.map(p => `<li><span class="n">ref</span><div>${esc(p.what)}<small>${(p.papers||[]).map(x => `<a href="https://pubmed.ncbi.nlm.nih.gov/${esc(x.pmid)}/" target="_blank" rel="noopener">PMID ${esc(x.pmid)}</a> ${esc(x.year||"")}`).join(" · ")}</small></div></li>`).join("")}</ul>` : ""}</div></div></div>`; }
+function showExp(id, anchor){ const e = E[id]; if (!e) return;
+  anchor = anchor || document.querySelector(`#matrix .xc[data-open="${CSS.escape(id)}"]`) || document.querySelector(`#startHere [data-open="${CSS.escape(id)}"]`);
+  if (!anchor) return;
+  const was = anchor.classList.contains("on") || !!anchor.closest("li.on"); closeInline(); if (was) return;
+  let box;
+  if (anchor.closest("#matrix")) { anchor.classList.add("on"); box = document.createElement("tr"); box.className = "inl"; box.innerHTML = `<td colspan="5">${expHTML(e)}</td>`; anchor.closest("tr").after(box); }
+  else { const li = anchor.closest("li"); li.classList.add("on"); box = document.createElement("div"); box.className = "inl"; box.innerHTML = expHTML(e); li.appendChild(box); }
+  box.scrollIntoView({block:"nearest", behavior:"smooth"}); }
+document.addEventListener("click", ev => { const b = ev.target.closest("[data-open]"); if (!b || ev.target.closest(".inl")) return; ev.preventDefault();
+  const where = b.closest("#matrix,#startHere,#paths"); go("experiments", () => showExp(b.dataset.open, where && where.id !== "paths" ? b : null)); });
+$("#matrix").addEventListener("mouseover", ev => { const b = ev.target.closest(".xc"); $$(".xc").forEach(x => x.classList.toggle("hot", !!b && x.dataset.open === b.dataset.open)); });
+$("#matrix").addEventListener("mouseleave", () => $$(".xc.hot").forEach(x => x.classList.remove("hot")));
+
+/* ================= treatments ================= */
+const LEVELS = ["in use for this disease","approved for another disease","in trials","preclinical"];
+const LIDX = d => { const k = LEVELS.indexOf(d.level); return k < 0 ? 9 : k; };
+function stepsHit(d, c){ return c.steps.filter(st => st.genes.includes(d.target) ||
+  (d.depends_on || []).some(m => { const x = D.missing[m]; return x && x.kind === "edge" && x.circuits.includes(c.rank) && x.edge === st.i; })); }
+function drugHTML(d){ const dossier = Object.fromEntries((D.record.dossier || []).map(x => [x.id, x]));
+  return `<div class="detail"><div class="dhead"><div><div class="lab" style="font-size:12.5px;color:var(--muted)">Drug hypothesis #${d.rank} · ${esc(cap(d.level))}${d.boxed ? " · black-box warning" : ""}</div>
+    <h3 class="sh">${esc(cap(d.drug))} ${gene(d.target)}</h3><p class="via" style="margin:0">${esc(d.mechanism || "")}</p></div><button type="button" class="btn close">Close</button></div>
+    <div class="dgrid"><table class="kv"><tr><th>Breaks</th><td>${esc(d.breaks || "")}</td></tr>
+      <tr><th>Would fail if</th><td>${(d.fails_under||[]).length ? d.fails_under.map(r => `hypothesis ${r} (${esc(short(r))})`).join("; ") + " is the right one" : "no hypothesis named"}</td></tr>
+      <tr><th>Robustness</th><td>${Math.round(d.robustness*100)}% of the circuits' support, in hypotheses ${(d.circuits||[]).join(", ")}</td></tr>
+      <tr><th>Listed for</th><td>${esc([...new Set(d.indications || [])].slice(0, 6).join(", "))}</td></tr>
+      ${(d.warnings||[]).length ? `<tr><th>Warnings</th><td>${d.warnings.map(w => esc(w.type + ": " + w.toxicity)).join("<br>")}</td></tr>` : ""}</table>
+    <div>${(d.improves||[]).length ? `<div class="sub2" style="margin-top:0">Disease features it should improve</div><ul class="lst">${d.improves.map(i => `<li><span class="n">${esc(i)}</span><div>${esc((dossier[i] || {}).text || "")}</div></li>`).join("")}</ul>` : ""}
+    ${d.rationale ? `<div class="sub2">The pharmacologist's reasoning</div><p style="font-size:14.5px;margin:0">${linkIds(d.rationale)}</p>` : ""}</div></div></div>`; }
+$("#byhyp").innerHTML = D.circuits.map(c => { const ds = D.therapy.filter(d => (d.circuits || []).includes(c.rank))
+    .map(d => ({d, hit: stepsHit(d, c)})).sort((a, b) => LIDX(a.d) - LIDX(b.d) || b.hit.length - a.hit.length || b.d.robustness - a.d.robustness);
+  if (!ds.length) return "";
+  return `<section class="hyp"><h3 class="hh">Hypothesis ${c.rank}<span>${esc(c.short)}</span><small>proposed by ${esc(c.support)} attempts · ${ds.length} drug${ds.length > 1 ? "s" : ""}</small></h3>
+    <div class="tbw"><table class="dtab"><tr><th>Drug</th><th>How ready</th><th>Acts on these steps</th><th>Also acts in</th><th>Safety</th></tr>${ds.map(({d, hit}) => `<tr data-dd="${esc(d.drug)}" tabindex="0">
+      <td><span class="dn">${esc(cap(d.drug))}</span> ${gene(d.target)}<small>${d.strategy === "cell type" ? `removes ${esc(d.depletes || "a cell type")}s, so it acts in every hypothesis that uses them` : esc((d.mechanism || "").replace(/\s+/g, " "))}</small></td>
+      <td>${esc(cap(d.level))}<small>${esc((d.stage || "").replace(/_/g, " ").toLowerCase())}</small></td>
+      <td>${hit.length ? `<ul class="bets">${hit.map(st => `<li>${evGlyph(st.status)}<span><b class="lab">${st.i}</b> ${esc((st.source + " → " + st.target).slice(0, 88))}</span></li>`).join("")}</ul>` : `<span class="lab" style="color:var(--muted)">acts through the cell type, not one step</span>`}</td>
+      <td>${(d.circuits || []).filter(r => r !== c.rank).map(r => `<span class="also" title="${esc(short(r))}">${r}</span>`).join("") || `<span class="lab" style="color:var(--muted)">only here</span>`}</td>
+      <td>${(d.warnings||[]).length ? (d.warnings||[]).map(w => `<span class="lab" style="color:var(--sel);font-size:12.5px;display:block">${esc(w.toxicity)}</span>`).join("") : `<span class="lab" style="color:var(--muted)">no boxed warning</span>`}</td></tr>`).join("")}</table></div></section>`; }).join("");
+function showDrug(name, row){ const d = D.therapy.find(x => x.drug === name); if (!d) return;
+  row = row || document.querySelector(`#byhyp tr[data-dd="${CSS.escape(name)}"]`); if (!row) return;
+  const was = row.classList.contains("on"); closeInline(); if (was) return;
+  row.classList.add("on"); const box = document.createElement("tr"); box.className = "inl"; box.innerHTML = `<td colspan="5">${drugHTML(d)}</td>`; row.after(box);
+  box.scrollIntoView({block:"nearest", behavior:"smooth"}); }
+document.addEventListener("click", ev => { const t = ev.target.closest("[data-dd]"); if (!t || ev.target.closest(".inl")) return; ev.preventDefault();
+  go("treatments", () => showDrug(t.dataset.dd, t.closest("#byhyp") ? t : null)); });
+document.addEventListener("keydown", ev => { if (ev.key === "Enter" && ev.target.matches?.("#byhyp tr[data-dd], .dg")) showDrug(ev.target.dataset.dd, ev.target.closest("#byhyp") ? ev.target : null); });
+function drugChart(){
+  const ds = D.therapy, W = 860, L = 180, R = 40, T = 16, B = 48, SUB = 22;
+  // within each readiness row, drugs sorted by robustness take the first sub-row where their label does not collide
+  const rows = LEVELS.map(() => []), place = [];
+  const xr = v => L + (W - L - R) * v;
+  ds.forEach(d => rows[Math.min(3, LIDX(d))].push(d));
+  rows.forEach(r => r.sort((a, b) => a.robustness - b.robustness));
+  const subs = rows.map(r => { const ends = []; r.forEach(d => { const x0 = xr(d.robustness) - 9, x1 = xr(d.robustness) + 18 + 7.2 * d.drug.length;
+    let k = ends.findIndex(e => e < x0); if (k < 0) { k = ends.length; ends.push(0); } ends[k] = x1 + 6; place.push({d, k}); }); return Math.max(1, ends.length); });
+  const rowH = subs.map(n => 22 + n * SUB), top = []; let acc = T; rowH.forEach((h, i) => { top[i] = acc; acc += h; });
+  const H = acc + B;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Drugs by robustness and readiness">`;
+  LEVELS.forEach((l, i) => s += `<line x1="${L}" x2="${W-R}" y1="${top[i]}" y2="${top[i]}" stroke="var(--hair)"/><text x="${L-14}" y="${top[i] + 22}" text-anchor="end" font-size="13" fill="var(--ink-2)">${cap(l)}</text>`);
+  s += `<line x1="${L}" x2="${W-R}" y1="${acc}" y2="${acc}" stroke="var(--rule)"/>`;
+  [0,.25,.5,.75,1].forEach(t => s += `<line x1="${xr(t)}" x2="${xr(t)}" y1="${T}" y2="${acc}" stroke="var(--hair)"/><text x="${xr(t)}" y="${acc+18}" text-anchor="middle" font-size="12" fill="var(--muted)">${Math.round(t*100)}%</text>`);
+  s += `<text x="${(L+W-R)/2}" y="${H-8}" text-anchor="middle" font-size="12.5" fill="var(--ink-2)">share of the circuits' support the drug acts on</text>`;
+  place.forEach(({d, k}) => { const li = Math.min(3, LIDX(d)), cx = xr(d.robustness), cy = top[li] + 18 + k * SUB;
+    s += `<g class="dg" data-dd="${esc(d.drug)}" tabindex="0" role="button" aria-label="${esc(cap(d.drug))}"><circle class="d" cx="${cx}" cy="${cy}" r="7" fill="${d.strategy === "cell type" ? "var(--plate)" : "var(--ink)"}" stroke="var(--ink)" stroke-width="2"/>${d.boxed ? `<circle cx="${cx}" cy="${cy}" r="11.5" fill="none" stroke="var(--sel)" stroke-width="1.4"/>` : ""}<text x="${cx + 16}" y="${cy + 4.5}" font-size="13" fill="var(--ink)">${esc(cap(d.drug))}</text></g>`; });
+  $("#dchart").innerHTML = s + `</svg><div class="legend"><span><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="var(--ink)"/></svg>acts on one step</span><span><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="var(--plate)" stroke="var(--ink)" stroke-width="2"/></svg>removes a whole cell type</span><span><svg width="26" height="26" aria-hidden="true"><circle cx="13" cy="13" r="6" fill="var(--ink)"/><circle cx="13" cy="13" r="11" fill="none" stroke="var(--sel)" stroke-width="1.4"/></svg>black-box warning</span></div>`;
+}
+drugChart();
+
+/* ================= correspondence (the margin of experiments and treatments) ================= */
+function letter(m){ const isPI = m.role === "PI", isPh = m.stage === "therapy";
+  const who = isPI ? "PI" : isPh ? "Pharmacologist" : "Experimentalist"; let t = (m.head || "") + m.text + (m.call ? " → " + m.call : ""), body = "", q = "", dec = "";
+  const v = t.match(/^VERDICT (\w+):\s*/);
+  if (v) { dec = `<span class="dec ${v[1]}">${v[1] === "pass" ? "Accepted" : "Revise"}</span>`; body = t.slice(v[0].length); }
+  else if (t.startsWith("ANSWER:")) body = isPh ? "Submitted drug hypotheses: " + (t.match(/"drug":\s*"([A-Z]+)"/g) || []).map(s => cap(s.split('"')[3])).slice(0, 6).join(", ") + "." : "Submitted a revised plan.";
+  else if (t.startsWith("PLAN:")) body = `Submitted a revised plan of ${t.split("|").length} experiments.`;
+  else { const [a, b] = t.split(" → "); body = a; if (b) { const mm = b.match(/^(\w+)\(([\s\S]*)\)$/); q = mm ? `<b>${esc(mm[1].replace(/_/g, " "))}</b> ${esc(mm[2].replace(/^\{|\}$/g, "").replace(/"/g, ""))}` : esc(b); } }
+  return `<div class="lt ${isPI ? "pi" : ""}"><div class="who">${who}${dec}<span class="t">${esc(m.time)}</span></div><p class="${body.length > 280 ? "clamp" : ""}">${linkIds(body)}</p>${body.length > 280 ? `<button type="button" class="more">Read in full</button>` : ""}${q ? `<div class="q">Query: ${q}</div>` : ""}</div>`; }
+function corr(stage){ const ls = D.chat.filter(m => m.stage === stage && !/^subscription .* out of usage|claude CLI failed/.test(m.text));
+  return `<div class="mhead">Correspondence<small>${stage === "therapy" ? "The treatment stage" : "The experiment stage"}, ${esc(ls[0]?.time || "")}–${esc(ls[ls.length-1]?.time || "")} · ${ls.length} letters <button type="button" class="btn replay">Replay</button></small></div>
+    <div class="letters">${ls.map(letter).join("")}</div>
+    <form class="add" onsubmit="return false"><label for="cmt-${stage}">Add a reviewer comment</label><textarea id="cmt-${stage}" placeholder="Live runs only" disabled></textarea><div class="row"><small>Every agent reads it; the PI answers and turns it into demands.</small><button type="submit" disabled>Send</button></div></form>`; }
+function wireCorr(root){ root.querySelector(".letters")?.addEventListener("click", ev => { const m = ev.target.closest(".more"); if (m) { const p = m.previousElementSibling; m.textContent = p.classList.toggle("clamp") ? "Read in full" : "Show less"; } });
+  root.querySelector(".replay")?.addEventListener("click", () => { const box = root.querySelector(".letters"), els = $$(".lt", box); els.forEach(e => e.classList.add("hid")); box.scrollTop = 0;
+    els.forEach((e, i) => setTimeout(() => { e.classList.remove("hid"); box.scrollTop = box.scrollHeight; }, 380 * (i + 1))); }); }
+$("#xcorr").innerHTML = corr("experiment"); wireCorr($("#xcorr"));
+$("#dcorr").innerHTML = corr("therapy"); wireCorr($("#dcorr"));
+
+/* ================= reasoning ================= */
+const VD = v => ({pass:"Passed", revise:"Sent back", sign_off:"Signed off", weak:"Weak", ok:"Adequate"}[v] || v);
+$("#stagebar").innerHTML = D.stages.map(s => `<button type="button" class="stg" data-k="${s.key}" aria-pressed="false"><div class="sn">${s.n}</div><div class="sm">${esc(s.name)}</div><div class="sc2">${esc(s.count)}</div><div class="vdots">${s.reviews.map(r => `<i class="${/pass|sign_off|ok/.test(r.verdict) ? "p" : ""}" title="${esc(VD(r.verdict))}"></i>`).join("")}</div></button>`).join("");
+const qrow = q => `<div class="qrow"><div class="qh">${esc(q.id)}<span class="k">${esc(q.kind || "")}</span>${q.conclusion ? `<span class="verd ${esc(q.conclusion)}">${esc(q.conclusion)}</span>` : ""}</div><p class="qt">${esc((q.text || "").slice(0, 420))}${(q.text||"").length > 420 ? "…" : ""}</p>${q.answer ? `<p class="qa">${linkIds(q.answer.slice(0, 900))}${q.answer.length > 900 ? "…" : ""}</p>` : ""}</div>`;
+const RENDER = {
+  dossier: () => { const by = {}; D.record.dossier.forEach(x => (by[x.section] ||= []).push(x));
+    return `<div class="cols3">${Object.entries(by).map(([sec, xs]) => `<div><h4>${esc(sec.replace(/_/g, " "))}</h4><ul class="lst">${xs.map(x => `<li><span class="n">${esc(x.id)}</span><div>${esc(x.text)}</div></li>`).join("")}</ul></div>`).join("")}</div>`; },
+  check: () => { const s = D.record.check.summary || {};
+    const col = (k, t) => `<div><h4>${t}</h4><ul class="lst">${(s[k] || []).map(x => `<li><span class="n">·</span><div>${esc(x.text)}${x.why ? `<small>${esc(x.why)}</small>` : ""}${x.checks ? `<small>${esc(x.checks)}</small>` : ""}</div></li>`).join("")}</ul></div>`;
+    return `<div class="cols3">${col("expected_present","Expected, and present")}${col("expected_absent","Expected, but absent")}${col("unexpected","Unexpected")}</div><h4 style="font:700 13px var(--label);margin:24px 0 4px">The questions behind it</h4>${D.record.check.questions.map(qrow).join("")}`; },
+  candidates: () => `<ul class="lst">${D.record.candidates.map(h => `<li><span class="n">${esc(h.id)}</span><div><b style="font-weight:600">${esc(h.title)}</b><small>${esc((h.summary || "").slice(0, 600))}</small></div></li>`).join("")}</ul>`,
+  chase: () => { const cnt = {}; D.record.chase.forEach(q => cnt[q.conclusion || "open"] = (cnt[q.conclusion || "open"] || 0) + 1);
+    return `<p class="lab" style="color:var(--ink-2)">${Object.entries(cnt).map(([k, v]) => `${v} ${esc(k)}`).join(" · ")}</p>${D.record.chase.map(qrow).join("")}`; },
+  linkage: () => `<ul class="lst">${D.record.linkage.map((l, i) => `<li><span class="n">L${i+1}</span><div><b style="font-weight:600">${esc(l.link)}</b><small>${esc(typeof l.suggests === "string" ? l.suggests : JSON.stringify(l.suggests || ""))}</small></div></li>`).join("")}</ul>`,
+  circuits: () => { const src = {}; D.circuits.forEach(c => (c.merged_from || []).forEach(m => { src[m.replace(/\s+/g, " ").toLowerCase()] = c.rank; }));
+    return `<p class="secsub">Each attempt proposed its circuits without seeing the others. The consensus step merged circuits that describe the same mechanism; a merged circuit keeps a count of the attempts behind it. Point at a merged circuit to see where it came from.</p>
+      <div class="merge">${D.record.attempts.map(a => `<div class="col"><h4>Attempt ${a.attempt}</h4>${a.circuits.map(c => { const key = `attempt ${a.attempt}, circuit ${c.rank}`; return `<div class="ac" data-into="${src[key] || ""}"><b>Circuit ${c.rank}${src[key] ? ` → merged into ${src[key]}` : ""}</b>${esc(c.title.split(/[:.]/)[0])}</div>`; }).join("")}</div>`).join("")}
+      <div class="col"><h4>After merging</h4>${D.circuits.map(c => `<div class="cc" data-cc="${c.rank}"><b>${c.rank} · ${esc(c.support)} attempts</b>${esc(c.short)}</div>`).join("")}</div></div>
+      <h4 style="font:700 13px var(--label);margin:24px 0 4px">How the merged circuits were ranked</h4><p style="max-width:80ch;font-size:15px">${esc(D.record.ranking)}</p>`; },
+  experiment: () => `<p class="secsub">The plan itself is in <a href="#experiments">Experiments</a>.</p>`,
+  therapy: () => `<p class="secsub">The drug hypotheses are in <a href="#treatments">Treatments</a>.</p>`,
+};
+function showStage(k){ const s = D.stages.find(x => x.key === k);
+  $$(".stg").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.k === k)));
+  $("#stagebody").innerHTML = `<p class="asks">${s.n}. ${esc(s.asks)}</p>${RENDER[k] ? RENDER[k]() : ""}
+    <div class="rev"><h4>The PI's reviews of this stage (${s.reviews.length})</h4>${s.reviews.map((r, i) => `<div class="rv"><div class="rh2">Review ${i + 1}${r.attempt ? ` · attempt ${r.attempt}` : ""}<span class="verd ${esc(r.verdict)}">${esc(VD(r.verdict))}</span></div><p>${linkIds(r.text)}</p>${r.demands.length ? `<ol>${r.demands.map(d => `<li>${linkIds(d)}</li>`).join("")}</ol>` : ""}</div>`).join("") || `<p class="quiet">No review recorded.</p>`}</div>`;
+  const mg = $("#stagebody .merge"); if (mg) mg.addEventListener("mouseover", ev => { const cc = ev.target.closest(".cc"); $$(".ac", mg).forEach(a => a.classList.toggle("hot", !!cc && a.dataset.into === cc.dataset.cc)); }); }
+$("#stagebar").addEventListener("click", ev => { const b = ev.target.closest(".stg"); if (b) showStage(b.dataset.k); });
+showStage("circuits");
+const tools = [...new Set(Object.values(D.results).map(r => r.tool))].sort();
+$("#evt").innerHTML = `<option value="">All tools (${Object.keys(D.results).length})</option>` + tools.map(t => `<option value="${esc(t)}">${esc((t || "").replace(/_/g, " "))}</option>`).join("");
+function evList(){ const q = $("#evq").value.trim().toLowerCase(), t = $("#evt").value;
+  const hits = Object.entries(D.results).filter(([id, r]) => (!t || r.tool === t) && (!q || (id + " " + r.args + " " + r.summary).toLowerCase().includes(q)));
+  $("#evl").innerHTML = `<p class="lab" style="color:var(--muted);font-size:12.5px">${hits.length} results${hits.length > 80 ? ", first 80 shown" : ""}</p>` + hits.slice(0, 80).map(([id, r]) => `<div class="er"><div class="eh"><button type="button" class="rid" data-rid="${id}">${id}</button>${esc((r.tool || "").replace(/_/g, " "))}<span>${esc(r.args)}</span></div><pre class="sum">${esc(r.summary.slice(0, 420))}${r.summary.length > 420 ? "…" : ""}</pre></div>`).join(""); }
+$("#evq").addEventListener("input", evList); $("#evt").addEventListener("change", evList); evList();
+$("#runline").textContent = D.runline + (D.prose ? ` · text edited for readers (${D.prose.rewritten} of ${D.prose.passages} passages) and checked with everwrite's tells.py: ${D.prose.strong_before} strong and ${D.prose.weak_before} weak findings before, ${D.prose.strong_after} and ${D.prose.weak_after} after.` : "");
+
+/* ================= result drawer and gene card ================= */
+const drawer = $("#drawer");
+function citedBy(id){ const out = [];
+  D.circuits.forEach(c => c.steps.forEach(s => { if (s.ids.includes(id)) out.push(`circuit ${c.rank}, step ${s.i}`); }));
+  (D.record.chase || []).concat(D.record.check.questions || []).forEach(q => { if ((q.ids || []).includes(id)) out.push(`question ${q.id}`); });
+  return out; }
+function openResult(id){ const r = D.results[id]; if (!r) return; const cb = citedBy(id);
+  drawer.innerHTML = `<button type="button" class="x" aria-label="Close">×</button><div class="lab" style="font-size:12.5px;color:var(--muted)">${esc((r.tool || "").replace(/_/g, " "))}</div><h3>Result ${esc(id)}</h3><div class="args">${esc(r.args)}</div><pre>${esc(r.summary)}</pre>${cb.length ? `<div class="sub2">Cited by</div><p class="lab" style="font-size:13.5px;margin:0">${cb.map(esc).join(" · ")}</p>` : ""}`;
+  drawer.hidden = false; drawer.querySelector(".x").focus(); }
+document.addEventListener("click", ev => { const b = ev.target.closest("[data-rid]"); if (b) { ev.preventDefault(); openResult(b.dataset.rid); return; }
+  if (ev.target.closest(".drawer .x")) drawer.hidden = true; });
+const gcard = $("#gcard"); let gt;
+document.addEventListener("keydown", ev => { if (ev.key === "Escape") { drawer.hidden = true; gcard.hidden = true; } });
+function gShow(el){ const g = el.dataset.gs, e = encodeURIComponent(g);
+  const st = []; D.circuits.forEach(c => c.steps.forEach(s => { if (s.genes.includes(g) || s.strips.some(x => x.gene === g)) st.push(`${c.rank}.${s.i}`); }));
+  const dr = D.therapy.filter(d => d.target === g).map(d => cap(d.drug));
+  gcard.innerHTML = `<div class="gn">${esc(g)}</div><ul><li>${st.length ? `Circuit steps ${st.slice(0, 10).join(", ")}` : "On no circuit step"}</li><li>${dr.length ? "Drugs in the panel: " + dr.join(", ") : "No drug in the panel targets it"}</li></ul><div class="lk"><a href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=${e}" target="_blank" rel="noopener">GeneCards ↗</a><a href="https://www.uniprot.org/uniprotkb?query=gene_exact:${e}+AND+organism_id:9606" target="_blank" rel="noopener">UniProt ↗</a><a href="https://www.proteinatlas.org/search/${e}" target="_blank" rel="noopener">Protein Atlas ↗</a></div>`;
+  gcard.hidden = false; const b = el.getBoundingClientRect(), w = 290, h = gcard.offsetHeight;
+  gcard.style.left = Math.min(Math.max(8, b.left), innerWidth - w - 8) + "px"; let y = b.bottom + 6; if (y + h > innerHeight - 8) y = Math.max(8, b.top - h - 6); gcard.style.top = y + "px"; }
+document.addEventListener("mouseover", ev => { const el = ev.target.closest?.("[data-gs]"); if (el) { clearTimeout(gt); gShow(el); return; } if (ev.target.closest?.(".gcard")) { clearTimeout(gt); return; } clearTimeout(gt); gt = setTimeout(() => gcard.hidden = true, 220); });
+document.addEventListener("focusin", ev => { const el = ev.target.closest?.("[data-gs]"); if (el) gShow(el); else if (!ev.target.closest?.(".gcard")) gcard.hidden = true; });
+addEventListener("scroll", () => gcard.hidden = true, {passive:true});
+</script>

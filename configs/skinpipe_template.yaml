@@ -1,0 +1,28 @@
+# Template for any current reviewed skinpipe study (adapter: skinpipe). Copy, then set study, disease and groups.
+study: pNNN
+adapter: skinpipe
+projects_root: /path/to/Projects
+disease: Disease          # the primary disease group, as named after adapter_options.groups renaming
+adapter_options:
+  compartment: all_cells  # reviewed object Intermediary/compartments/<compartment>/...
+  # Keep only the groups this question needs (every pair is scanned genome-wide): {raw analysis_group: short name}
+  groups:
+    "Disease · Skin · Lesional": Disease
+    "Other disease · Skin · Lesional": Other
+    "Healthy · Skin": Healthy
+  reference: Healthy      # default: the reference of the planned comparison (Results/comparisons) of the disease
+  # comparison: <comparison_id>   # when several planned comparisons share the disease and reference
+  # route: all_cells              # default: all_cells, whole_context, population_molecular, focused_compartment
+disease_phenotype: ""     # clinical context for the agents (configuration, not evidence)
+guidance: ""
+mode: multi
+# panel: omit to derive specialists from the study's lineages; a list sets them (the artifact sceptic is always added)
+n_hypotheses: 4
+lab_tables: false
+llm:
+  backend: openai_compat
+  base_url: http://127.0.0.1:8000/v1
+  model: openai/gpt-oss-120b
+  temperature: 0.2
+  max_tokens: 8000
+  external_ok: false
