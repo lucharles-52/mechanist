@@ -38,6 +38,9 @@ CSS = ('#viewMechanist{--mk:#2b6cd4;display:inline-flex;align-items:center;gap:6
        '@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #viewMechanist{--mk:#8db4ec}}'
        ':root[data-theme="dark"] #viewMechanist{--mk:#8db4ec}')
 ANCHOR = re.compile(r'<a\b[^>]*\bid="viewMechanist"[^>]*>.*?</a>', re.S)
+ANALYSES = ('<a href="mechanist/analyses.html" id="viewAnalyses" title="Every data query behind Mechanist\'s results, '
+            're-run by the pipeline\'s own code">Analyses</a>')
+ANALYSES_RE = re.compile(r'<a\b[^>]*\bid="viewAnalyses"[^>]*>.*?</a>', re.S)
 
 
 def study_of(run: Path) -> str:
@@ -53,18 +56,21 @@ def keep(path: Path, backup: Path) -> None:
         (shutil.copytree if path.is_dir() else shutil.copy2)(path, backup / path.name)
 
 
-def with_tab(catalog: str) -> str:
-    """window.CATALOG={...}; with mechanist_tab set to the site."""
+def with_tab(catalog: str, analyses: bool = False) -> str:
+    """window.CATALOG={...}; with mechanist_tab set to the site (and mechanist_analyses to its analyses page)."""
     head, _, body = catalog.partition("=")
     data = json.loads(body.strip().rstrip(";"))
     data["mechanist_tab"] = "mechanist/index.html"
+    if analyses:
+        data["mechanist_analyses"] = "mechanist/analyses.html"
     return f"{head}={json.dumps(data, ensure_ascii=False, separators=(',', ':'))};\n"
 
 
-def with_button(page: str) -> str:
+def with_button(page: str, analyses: bool = False) -> str:
     if not ANCHOR.search(page):
         raise SystemExit("the Results page has no Mechanist tab to switch on")
-    page = ANCHOR.sub(lambda _m: BUTTON, page, count=1)
+    page = ANALYSES_RE.sub("", page)
+    page = ANCHOR.sub(lambda _m: BUTTON + (ANALYSES if analyses else ""), page, count=1)
     if "#viewMechanist{" not in page:
         page = page.replace("</style>", CSS + "\n</style>", 1)
     return page.replace('id="viewTabs" aria-label="Study views" hidden>', 'id="viewTabs" aria-label="Study views">', 1)
@@ -81,6 +87,9 @@ def publish(run: Path, upload: bool = True) -> None:
     shutil.rmtree(pub, ignore_errors=True)
     pub.mkdir(parents=True)
     shutil.copy2(site, pub / "index.html")
+    analyses = (run / "site" / "analyses.html").exists()  # scripts/build_analyses.py, when it has been run
+    if analyses:
+        shutil.copy2(run / "site" / "analyses.html", pub / "analyses.html")
     print(f"published {run.name} to {pub}")
 
     folders = sorted(PORTAL.glob(f"*__{pid}"))
@@ -93,14 +102,14 @@ def publish(run: Path, upload: bool = True) -> None:
     shutil.rmtree(report / "mechanist", ignore_errors=True)
     shutil.copytree(pub, report / "mechanist")
     cat = report / "data" / "catalog.js"
-    cat.write_text(with_tab(cat.read_text()))
+    cat.write_text(with_tab(cat.read_text(), analyses))
     page = report / "index.html"
-    page.write_text(with_button(page.read_text()))
+    page.write_text(with_button(page.read_text(), analyses))
     print(f"live page updated: {report}")
     if not upload:
         return
     dest = f"{BOX}/{pid}/report"
-    for f in ("index.html", "data/catalog.js", "mechanist/index.html"):
+    for f in ("index.html", "data/catalog.js", "mechanist/index.html") + (("mechanist/analyses.html",) if analyses else ()):
         subprocess.run([RCLONE, "copyto", str(report / f), f"{dest}/{f}"], check=True)
     print(f"uploaded to {dest}")
 
