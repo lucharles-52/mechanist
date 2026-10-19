@@ -23,3 +23,6 @@ docs/mockups/
 # knowledge tables are rebuilt by scripts/build_kb.py; literature cache is per machine
 kb/*.csv
 kb/lit_cache
+
+# local run logs
+/*.log
