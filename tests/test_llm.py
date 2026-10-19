@@ -281,3 +281,47 @@ def test_a_new_seat_goes_before_the_lab_key(tmp_path, monkeypatch):
              f"key:{tmp_path}/api_key"]
     pool.write_order(["a", "me", "key:api_key"], [], "t")
     assert [pool.account_id(x) for x in pool.ordered(accts)] == ["a", "me", "new", "key:api_key"]
+
+
+def test_seats_rest_until_their_reset_and_new_seats_join_a_running_pool(tmp_path, monkeypatch):
+    import datetime as dt
+    import time
+
+    from mechanist import llm, pool
+    monkeypatch.setenv("MECHANIST_POOL_DIR", str(tmp_path))
+    monkeypatch.setattr(llm.Path, "home", lambda: tmp_path / "home")
+    for f in ("oauth_token_ann", "oauth_token_bo"):
+        (tmp_path / f).write_text("x")
+    now = time.time()
+    r = pool.reset_at("You've hit your session limit · resets 10:40am (America/New_York)", now)
+    t = dt.datetime.fromtimestamp(r)
+    assert (t.hour, t.minute) == (10, 42) and now < r <= now + 86400
+    ann, bo = (f"subscription:{tmp_path}/oauth_token_{n}" for n in ("ann", "bo"))
+    pool.mark(ann, "ran_out", now + 600)  # known reset: rests until then, not the default half hour
+    assert pool.resting(ann, now + 300) and not pool.resting(ann, now + 700)
+    pool.mark(bo, "ran_out")  # no reset in the message: the default rest
+    assert pool.ready_at(bo) >= now + pool.REST_S - 1
+    assert abs(pool.next_ready() - (now + 600)) < 2  # the queue wakes for the first seat back, not the last
+    (tmp_path / "oauth_token_cy").write_text("x")  # saved while everything rests: ready at once
+    assert pool.next_ready() == 0.0
+
+    cfg = llm.LLMConfig(backend="claude", model="opus", external_ok=True, accounts=[f"subscription:{tmp_path}/oauth_token_*"])
+    b = llm.ClaudeAccounts(cfg)
+    used = []
+
+    class Fake:
+        def __init__(self, name):
+            self.name = name
+
+        def chat(self, tag, messages, temperature=None):
+            if self.name != "dee":
+                raise RuntimeError("claude CLI failed (1): You've hit your session limit · resets 1pm")
+            used.append(self.name)
+            return "ok", {}
+
+    (tmp_path / "oauth_token_cy").unlink()
+    b.accounts = [a for a in b.accounts if not a.endswith("_cy")]
+    (tmp_path / "oauth_token_dee").write_text("x")  # a seat saved after the run started
+    b._backend = lambda a: Fake(pool.account_id(a))
+    _, usage = b.chat("t", [{"role": "user", "content": "x"}])
+    assert used == ["dee"] and usage["account"] == "subscription dee"
