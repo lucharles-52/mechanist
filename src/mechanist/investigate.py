@@ -800,6 +800,17 @@ OUTCOMES = ("up", "down", "no change", "not addressed")
 QUESTIONS = ("presence", "rule_out", "mechanism", "in_vivo")  # what an experiment asks, in the order a lab would ask
 TIERS = ("in_data", "archived_tissue", "spatial", "ex_vivo", "in_vitro", "in_vivo", "cohort")
 LEVELS = ("in use for this disease", "approved for another disease", "in trials", "preclinical")
+# an index patient has no settled disease: the first level means reported in one of the candidate diagnoses
+INDEX_LEVELS = ("reported in a candidate disease",) + LEVELS[1:]
+_STOP = {"the", "and", "with", "from", "that", "this", "their", "they", "have", "has", "was", "were", "for", "into",
+         "over", "under", "patient", "patients", "skin", "lesion", "lesions", "which", "when", "after", "before"}
+
+
+def said_in(text: str, source: str, share: float = 0.6) -> bool:
+    """A paraphrase of the source rather than something new: most of its content words appear in the source."""
+    words = [w for w in re.findall(r"[a-z][a-z0-9-]{2,}", str(text).lower()) if w not in _STOP]
+    src = str(source).lower()
+    return bool(words) and sum(w in src for w in words) / len(words) >= share
 BLOCKING = re.compile(r"inhibitor|antagonist|blocker|negative|degrader|antibody|neutraliz|inverse agonist|suppressor",
                       re.IGNORECASE)
 
@@ -1236,8 +1247,8 @@ def cell_targets(circuits: list[dict], markers: dict[str, list[str]], cells_of) 
 
 
 def check_therapies(hyps: list[dict], lookups: dict[str, dict], circuits: list[dict], ms: list[dict], items: set[str],
-                    therapy_texts: str, disease: str, cell_tg: list[dict] | None = None
-                    ) -> tuple[list[dict], list[Objection]]:
+                    therapy_texts: str, disease: str, cell_tg: list[dict] | None = None, design: str = "cohort",
+                    reported: dict[str, tuple[str, str]] | None = None) -> tuple[list[dict], list[Objection]]:
     """A therapeutic hypothesis stands only on a lookup that ran: the drug must be listed for that target. Its stage,
     action and evidence level come from the lookup and code, never from the model. A drug that does not block (an
     agonist, an activator) is flagged, since the circuits' steps are activating."""
@@ -1264,11 +1275,24 @@ def check_therapies(hyps: list[dict], lookups: dict[str, dict], circuits: list[d
             cs = sorted(set(cs) | set(cell["circuits"]))
         strategy = "cell type" if cell is not None else "step"
         warn = [w for w in d.get("warnings") or [] if w.get("type")]
+        level = drug_level(d, therapy_texts, disease)
+        root = re.sub(r"\s+(SODIUM|PHOSPHATE|HYDROCHLORIDE|CITRATE|MESYLATE|SULFATE)\b.*$", "", d["drug"].upper()).lower()
+        seen_in = sorted({sec.split(":")[0].strip() for sec, t in (reported or {}).values()
+                          if root and re.search(r"\b" + re.escape(root) + r"\b", t.lower())})
+        improves = [i for i in h.get("improves") or [] if i in items]
+        if design == "index_patient":  # the patient's own features; a candidate disease's items are similarities
+            similar = [i for i in improves if not i.startswith("P")]
+            improves = [i for i in improves if i.startswith("P")]
+            if level == LEVELS[0]:
+                level = INDEX_LEVELS[0]
+        else:
+            similar = []
         out.append({"drug": d["drug"], "target": g, "stage": d.get("stage", ""), "actions": acts,
                     "mechanism": "; ".join(a.get("mechanism", "") for a in (d.get("actions") or [])[:2]),
-                    "indications": (d.get("indications") or [])[:5], "level": drug_level(d, therapy_texts, disease),
+                    "indications": (d.get("indications") or [])[:5], "level": level, "reported_in": seen_in,
+                    "similar": similar,
                     "blocks": blocks, "circuits": cs, "support": round(sum(sup.get(r, 0) for r in cs), 3),
-                    "breaks": str(h.get("breaks") or ""), "improves": [i for i in h.get("improves") or [] if i in items],
+                    "breaks": str(h.get("breaks") or ""), "improves": improves,
                     "fails_under": [r for r in (int(x) for x in h.get("fails_under") or [] if str(x).isdigit())
                                     if r in ranks],
                     "depends_on": [m for m in (str(x) for x in h.get("depends_on") or []) if m in mids],
@@ -1282,8 +1306,11 @@ def check_therapies(hyps: list[dict], lookups: dict[str, dict], circuits: list[d
             objs.append(Objection(target="therapy", kind="unsupported_step", source="verifier",
                                   text=f"{d['drug']} acts on {g} as {', '.join(acts) or 'an unknown action'}, not as a "
                                        f"blocker: check the direction against the circuit step."))
-    lv = {x: i for i, x in enumerate(LEVELS)}
-    out.sort(key=lambda h: (lv.get(h["level"], 9), -h["support"], len(h["depends_on"]), not h["blocks"]))
+    lv = {x: i for i, x in enumerate(LEVELS)} | {x: i for i, x in enumerate(INDEX_LEVELS)}
+    if design == "index_patient":  # this patient's circuits first; use in a candidate disease only breaks ties
+        out.sort(key=lambda h: (-h["support"], len(h["depends_on"]), lv.get(h["level"], 9), not h["blocks"]))
+    else:
+        out.sort(key=lambda h: (lv.get(h["level"], 9), -h["support"], len(h["depends_on"]), not h["blocks"]))
     for i, h in enumerate(out, 1):
         h["rank"] = i
     return out, objs

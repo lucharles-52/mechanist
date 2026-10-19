@@ -203,7 +203,7 @@ def write_page(run: Path, llm=None) -> dict:
     pdata = panel_data(results)
     want = cited_ids(circuits)
     avail = sorted(k for k in pdata if k[0] in want)
-    items = agents.phenotype_items((ctx.get("dossier") or {}).get("dossier") or {})
+    items = agents.run_items(ctx, cfg.design)
     gs = groups(ctx)
     pats = {k: _pattern(pdata[k], gs) for k in avail}
     source = json.dumps({"circuits": circuits, "ranking": circ.get("ranking", "")}, ensure_ascii=False)
@@ -1262,7 +1262,7 @@ def render_mechanism(run: Path, tabs: list[tuple[str, str, bool]], study: str, s
                              + " ".join(f'<a href="#{esc(x)}">{esc(x)}</a>' if x in results else esc(x) for x in lk.get("ids") or [])
                              + "</td></tr>" for lk in syn.get("links") or [])
                    + "</table></div></details></div></div></section>")
-    items = agents.phenotype_items((ctx.get("dossier") or {}).get("dossier") or {})
+    items = agents.run_items(ctx, cfg.design)
     if items and any(c.get("phenotype") for c in cs):
         out.append('<section id="fit"><h2>Which disease features each circuit produces</h2><p class="sub">Items from the '
                    'disease background (the dossier). A dot means the circuit says how it produces that item; hover a dot '

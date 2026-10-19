@@ -180,7 +180,8 @@ def build(run: Path, portal: bool, human: bool = True) -> str:
     dirs = run_dirs(run)
     groups = ctx["load"]["groups"]
     from mechanist.runner import RunConfig
-    case = RunConfig.from_yaml(run / "config.yaml").disease
+    rcfg = RunConfig.from_yaml(run / "config.yaml")
+    case, design = rcfg.disease, rcfg.design
     case = case if case in groups else next(iter(groups))
     ref = ctx["load"].get("reference_group")
     order = [case] + [g for g in groups if g not in (case, ref)] + ([ref] if ref in groups else [])
@@ -208,7 +209,7 @@ def build(run: Path, portal: bool, human: bool = True) -> str:
     ex, th = ctx.get("experiment") or {}, ctx.get("therapy") or {}
     ms = {m["id"]: m for m in ex.get("missing_links") or th.get("missing_links") or []}
     dossier = [{"id": i, "section": sec, "text": t}
-               for i, sec, t in agents.phenotype_items((ctx.get("dossier") or {}).get("dossier") or {})]
+               for i, sec, t in agents.run_items(ctx, design)]
     attempts = [{"attempt": a["attempt"], "circuits": [{"rank": c["rank"], "title": c["title"]} for c in a.get("circuits") or []]}
                 for a in (ctx.get("circuits") or {}).get("attempts") or []]
     chase_q, check_q = questions((ctx.get("chase") or {}).get("questions")), questions((ctx.get("check") or {}).get("questions"))
@@ -271,7 +272,7 @@ def build(run: Path, portal: bool, human: bool = True) -> str:
     data = {"page": {k: page.get(k) for k in ("question", "answer", "points")}, "groups": dict(gorder), "case": case,
             "circuits": circuits, "experiments": ex.get("experiments") or [], "programmes": ex.get("programmes") or [],
             "not_testable": ex.get("not_testable") or [], "therapy": th.get("hypotheses") or [], "missing": ms,
-            "considered": th.get("considered") or [], "trace": full_record(dirs, res),
+            "considered": th.get("considered") or [], "trace": full_record(dirs, res), "design": design,
             "stages": stages, "record": record, "results": results, "chat": chat,
             "counts": {"tools": len(res), "lit": sum(1 for r in res.values() if r.get("tool") == "literature_search"),
                        "gates": gates, "attempts": len(attempts) or 1},

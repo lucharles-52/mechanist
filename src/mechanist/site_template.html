@@ -428,7 +428,7 @@ pre.sum{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,C
       <h1 class="view">Which drugs could act on each hypothesis</h1>
       <p class="stand">Research hypotheses for discussion, not treatment advice. Drug facts (approval, mechanism, black-box warnings) come from Open Targets; how sure each drug is to break the circuits is computed from the circuits it acts in.</p>
       <h2 class="sec">All drugs at once: how sure, and how ready</h2>
-      <p class="secsub">Across: the share of the circuits' support that sits on steps the drug acts on, so a drug further right breaks the circuits whichever of them is right. Up: how close the drug is to use in this disease. Select a drug to jump to it.</p>
+      <p class="secsub">Across: the share of the circuits' support that sits on steps the drug acts on, so a drug further right breaks the circuits whichever of them is right. Up: how close the drug is to clinical use; for a patient without a settled diagnosis, the top row means reported in one of the candidate diseases. Select a drug to jump to it.</p>
       <div class="chart" id="dchart"></div>
       <h2 class="sec">Drugs by hypothesis</h2>
       <p class="secsub">Drugs grouped by the hypothesis whose steps they act on, best-supported hypothesis first. Within a hypothesis, drugs closest to use come first. A drug that acts in several hypotheses appears under each, with the others listed. Select a drug to open its full case under its row.</p>
@@ -645,7 +645,8 @@ $("#matrix").addEventListener("mouseover", ev => { const b = ev.target.closest("
 $("#matrix").addEventListener("mouseleave", () => $$(".xc.hot").forEach(x => x.classList.remove("hot")));
 
 /* ================= treatments ================= */
-const LEVELS = ["in use for this disease","approved for another disease","in trials","preclinical"];
+const INDEX = D.design === "index_patient";  /* one patient, no settled diagnosis: the comparators are candidates */
+const LEVELS = [INDEX ? "reported in a candidate disease" : "in use for this disease","approved for another disease","in trials","preclinical"];
 const LIDX = d => { const k = LEVELS.indexOf(d.level); return k < 0 ? 9 : k; };
 function stepsHit(d, c){ return c.steps.filter(st => st.genes.includes(d.target) ||
   (d.depends_on || []).some(m => { const x = D.missing[m]; return x && x.kind === "edge" && x.circuits.includes(c.rank) && x.edge === st.i; })); }
@@ -657,7 +658,9 @@ function drugHTML(d){ const dossier = Object.fromEntries((D.record.dossier || []
       <tr><th>Robustness</th><td>${Math.round(d.robustness*100)}% of the circuits' support, in hypotheses ${(d.circuits||[]).join(", ")}</td></tr>
       <tr><th>Listed for</th><td>${esc([...new Set(d.indications || [])].slice(0, 6).join(", "))}</td></tr>
       ${(d.warnings||[]).length ? `<tr><th>Warnings</th><td>${d.warnings.map(w => esc(w.type + ": " + w.toxicity)).join("<br>")}</td></tr>` : ""}</table>
-    <div>${(d.improves||[]).length ? `<div class="sub2" style="margin-top:0">Disease features it should improve</div><ul class="lst">${d.improves.map(i => `<li><span class="n">${esc(i)}</span><div>${esc((dossier[i] || {}).text || "")}</div></li>`).join("")}</ul>` : ""}
+    <div>${(d.improves||[]).length ? `<div class="sub2" style="margin-top:0">${INDEX ? "This patient's features it should improve" : "Disease features it should improve"}</div><ul class="lst">${d.improves.map(i => `<li><span class="n">${esc(i)}</span><div>${esc((dossier[i] || {}).text || "")}</div></li>`).join("")}</ul>` : ""}
+    ${(d.reported_in||[]).length ? `<p class="quiet" style="margin:6px 0">Reported in ${esc(d.reported_in.join(" and "))}${INDEX ? ", a candidate diagnosis: a similarity to weigh, not evidence about this patient" : ""}.</p>` : ""}
+    ${(d.similar||[]).length ? `<div class="sub2">Where it resembles a candidate disease</div><ul class="lst">${d.similar.map(i => `<li><span class="n">${esc(i)}</span><div><b style="font-weight:600">${esc(((dossier[i] || {}).section || "").split(":")[0])}.</b> ${esc((dossier[i] || {}).text || "")}</div></li>`).join("")}</ul>` : ""}
     ${d.rationale ? `<div class="sub2">The pharmacologist's reasoning</div><p style="font-size:14.5px;margin:0">${linkIds(d.rationale)}</p>` : ""}</div></div></div>`; }
 $("#byhyp").innerHTML = D.circuits.map(c => { const ds = D.therapy.filter(d => (d.circuits || []).includes(c.rank))
     .map(d => ({d, hit: stepsHit(d, c)})).sort((a, b) => LIDX(a.d) - LIDX(b.d) || b.hit.length - a.hit.length || b.d.robustness - a.d.robustness);

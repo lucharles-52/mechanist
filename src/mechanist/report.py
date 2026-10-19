@@ -13,7 +13,7 @@ from collections import Counter
 from pathlib import Path
 
 from mechanist import investigate as inv
-from mechanist.agents import phenotype_items
+from mechanist.agents import run_items
 from mechanist.findings import digest_line
 from mechanist.llm import billed_cost
 from mechanist.records import (
@@ -345,7 +345,7 @@ def staged_gates(ctx: dict) -> dict:
     return dict(sorted(out.items()))
 
 
-def _staged_sections(ctx: dict, syn: Synthesis | None, gates: dict) -> list[str]:
+def _staged_sections(ctx: dict, syn: Synthesis | None, gates: dict, design: str = "cohort") -> list[str]:
     L = ["## The PI's gates", "", "| Stage | Reviews | Closed by | New tests | New testable predictions |",
          "|---|---|---|---|---|"]
     L += [f"| {k} | {g['reviews']} | {g['closed_by']} | {g['new_tests']} | {g['new_testable_predictions']} |"
@@ -364,7 +364,7 @@ def _staged_sections(ctx: dict, syn: Synthesis | None, gates: dict) -> list[str]
             L += [f"| {lk.source} → {lk.mediator} → {lk.target} | {lk.involved or '—'} | {lk.specific or '—'} |"
                   for lk in syn.links]
         if syn.phenotype_fit:
-            items = {i: (sec, t) for i, sec, t in phenotype_items((ctx.get("dossier") or {}).get("dossier") or {})}
+            items = {i: (sec, t) for i, sec, t in run_items(ctx, design)}
             counts = Counter(f.verdict for f in syn.phenotype_fit)
             L += ["", "### How the model accounts for the disease", "", (
                   "Each item of the stage 1 dossier (from the literature), as the final model accounts for it: "
@@ -508,7 +508,7 @@ def build(cfg, ctx: dict, run_dir: Path) -> tuple[str, dict]:
             L += ["Verifier notes on the model:", ""] + [f"- `{o.kind}` ({o.target}): {o.text}" for o in syn_objs] + [""]
 
     if gates:
-        L += _staged_sections(ctx, syn, gates)
+        L += _staged_sections(ctx, syn, gates, cfg.design)
     reviews = (ctx.get("chase") or {}).get("pi_reviews") or []
     if len(reviews) > 1:
         L += ["## PI review rounds", "", ("| Round | Verdict | Signed off | Demands | New tests | New predictions | "

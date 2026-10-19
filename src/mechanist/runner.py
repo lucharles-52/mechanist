@@ -1065,7 +1065,14 @@ class Runner:
         return self.stage("revise", [dep], fn)
 
     def _phenotype_items(self, ctx) -> list[tuple[str, str, str]]:
-        return agents.phenotype_items((ctx.get("dossier") or {}).get("dossier") or {})
+        return agents.phenotype_items((ctx.get("dossier") or {}).get("dossier") or {},
+                                      (ctx.get("check") or {}).get("summary") or {}, self.cfg.design)
+
+    def _candidates(self, ctx) -> list[str]:
+        """The comparison groups other than the patient and the reference: the candidate diagnoses."""
+        ds = ctx.get("load") or {}
+        ref = ds.get("reference_group")
+        return [g for g in (ds.get("groups") or {}) if g not in (self.cfg.disease, ref)]
 
     def _final_gate(self, ctx, qs, results, text, out, experiments):
         """Stage 6: the PI reviews the integrated model; its demands are chased in the data and the model rebuilt,
@@ -1177,8 +1184,12 @@ class Runner:
             execute, catalog = self._restricted(tb, DOSSIER_TOOLS, results, 5001)
             st: dict = {"dossier": {}, "steps": [], "dropped": 0, "dropped_items": [], "seen": set()}
 
+            index = self.cfg.design == "index_patient"
+            cands = self._candidates(ctx)
+
             def draft(previous: str, tag: str):
-                system = agents.DOSSIER_SYSTEM.format(steps=self.cfg.dossier_steps)
+                system = agents.DOSSIER_SYSTEM.format(steps=self.cfg.dossier_steps) + (
+                    agents.DOSSIER_INDEX.format(candidates=", ".join(cands)) if index else "")
                 user = agents.DOSSIER_USER.format(context=context, phenotype=phen, catalog=catalog, previous=previous)
                 ans, steps = agents.run_thread(self.llm, tag, system, user, execute, self.cfg.dossier_steps,
                                                self.cfg.thread_result_cap)
@@ -1208,6 +1219,10 @@ class Runner:
                         fids = [i for i in (inv.normalize_id(str(y)) for y in x.get("ids") or []) if i in known_f]
                         if ids:  # every literature item rests on a search run here
                             item = {"text": str(x["text"]), "ids": ids}
+                            if index:  # which candidate disease it describes: a reference point, not the patient
+                                a = str(x.get("about") or "").strip()
+                                item["about"] = next((c for c in cands if c.lower() == a.lower()), None) or (
+                                    a.lower() if a.lower() in ("shared", "general") else "general")
                             if key == "beyond_single_cell":
                                 item.update(why=str(x.get("why") or ""), trace=str(x.get("trace") or ""))
                             out[key].append(item)
@@ -1216,6 +1231,11 @@ class Runner:
                         else:
                             st["dropped"] += 1
                             st["dropped_items"].append({"section": key, "text": x["text"], "ids": x.get("ids")})
+                if index:  # the patient's own features, kept only when the submission says them
+                    out["patient_features"] = [{"text": str(x.get("text") if isinstance(x, dict) else x).strip()}
+                                               for x in ans.get("patient_features") or []
+                                               if inv.said_in(str(x.get("text") if isinstance(x, dict) else x),
+                                                              f"{phen} {self.cfg.guidance}")]
                 known = {f.id for f in fs}
                 out["novelty_leads"] = [{"text": str(x["text"]),
                                          "finding_ids": [i for i in x.get("finding_ids") or [] if i in known]}
@@ -1676,8 +1696,9 @@ class Runner:
                 for ct in cell_tg:
                     for g in ct["genes"]:
                         execute("gene_drugs", {"gene": g})
-            items = agents.phenotype_items((ctx.get("dossier") or {}).get("dossier") or {})
+            items = self._phenotype_items(ctx)
             therapy_texts = " ".join(t for _i, sec, t in items if "therap" in sec)
+            reported = {i: sec.split(":")[0] for i, sec, _t in items if "therap" in sec and ":" in sec}
 
             def lookups() -> dict[str, dict]:
                 return {str(r.data.get("gene", "")).upper(): r.data for r in results if r.tool == "gene_drugs" and r.ok}
@@ -1730,7 +1751,9 @@ class Runner:
                 if ans is None:
                     return
                 hyps, objs = inv.check_therapies(ans.get("hypotheses") or [], lookups(), circs, ms,
-                                                 {i for i, _s, _t in items}, therapy_texts, self.cfg.disease, cell_tg)
+                                                 {i for i, _s, _t in items}, therapy_texts, self.cfg.disease, cell_tg,
+                                                 design=self.cfg.design,
+                                                 reported={i: (sec, t) for i, sec, t in items if i in reported})
                 via = {x["gene"]: x["via"] for t in targets for x in t.get("lookups") or [] if x["via"] != "named"}
                 for h in hyps:
                     h["via"] = via.get(h["target"], "")

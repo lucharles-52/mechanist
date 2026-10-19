@@ -558,3 +558,40 @@ def test_mechanism_cards_keep_only_numbers_and_quotes_their_sources_hold():
     assert (1, "literature", "quote not in that result") in why and (1, "literature", "PMID not in that result") in why
     assert (2, "seen_here", "no cited result") in why and (1, "seen_here", "numbers not in the cited results: 13.7") in why
     assert c1["seen_here"]["text"] == "42.5% of case CellA vs 3.1% of reference."
+
+
+def test_index_patient_items_put_the_patient_first_and_name_each_candidate_disease():
+    from mechanist import agents
+    d = {"patient_features": [{"text": "painful ulcers on the leg after a minor injury"}],
+         "defining_features": [{"text": "ulcers with undermined borders", "ids": ["R1"], "about": "DiseaseA"}],
+         "therapies": [{"text": "drugx is used in DiseaseB", "ids": ["R2"], "about": "DiseaseB"}]}
+    check = {"expected_present": [{"text": "SIG1 raised in this patient's keratinocytes"}], "unexpected": [{"text": "few CellZ"}]}
+    items = agents.phenotype_items(d, check, "index_patient")
+    assert [i for i, _s, _t in items] == ["P01", "P02", "P03", "D01", "D02"]
+    assert items[0][1] == "this patient, as submitted" and items[1][1] == "this patient, seen in the data"
+    assert items[3][1] == "DiseaseA: defining feature" and items[4][1] == "DiseaseB: therapy response"
+    # a cohort keeps the old numbering and labels, with no patient items
+    assert [(i, s) for i, s, _t in agents.phenotype_items(d, check)] == [("D01", "defining feature"), ("D02", "therapy response")]
+    assert "P items are this patient's own features" in agents.phenotype_text(items)
+    assert "P items" not in agents.phenotype_text(agents.phenotype_items(d))
+    sub = "Patient: lesional skin from one patient with painful ulcers on the leg that began after a minor injury."
+    assert inv.said_in("painful ulcers on the leg after a minor injury", sub)
+    assert not inv.said_in("fever and raised neutrophil count in blood", sub)
+
+
+def test_index_patient_drugs_rank_on_the_patients_circuits_and_name_the_candidate_they_are_used_in():
+    circuits = [{"rank": 1, "support": "3 of 3"}, {"rank": 2, "support": "1 of 3"}]
+    lk = {"TGTA": {"drugs": [{"drug": "DRUGX", "stage": "APPROVAL", "actions": [{"action": "inhibitor"}]}]},
+          "TGTB": {"drugs": [{"drug": "DRUGY", "stage": "PHASE_2", "actions": [{"action": "inhibitor"}]}]}}
+    hyps = [{"drug": "DRUGX", "target": "TGTA", "circuits": [2], "improves": ["P01", "D02"]},
+            {"drug": "DRUGY", "target": "TGTB", "circuits": [1], "improves": ["P01"]}]
+    items = {"P01", "D01", "D02"}
+    reported = {"D02": ("DiseaseB: therapy response", "drugx is used in DiseaseB")}
+    out, _ = inv.check_therapies(hyps, lk, circuits, [], items, "drugx is used in DiseaseB", "Patient",
+                                 design="index_patient", reported=reported)
+    assert [h["drug"] for h in out] == ["DRUGY", "DRUGX"]  # the lead circuit first, not the drug used elsewhere
+    x = next(h for h in out if h["drug"] == "DRUGX")
+    assert x["level"] == "reported in a candidate disease" and x["reported_in"] == ["DiseaseB"]
+    assert x["improves"] == ["P01"] and x["similar"] == ["D02"]
+    cohort, _ = inv.check_therapies(hyps, lk, circuits, [], items, "drugx is used in DiseaseB", "Patient")
+    assert cohort[0]["drug"] == "DRUGX" and cohort[0]["level"] == "in use for this disease"

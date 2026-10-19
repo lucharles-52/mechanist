@@ -889,13 +889,15 @@ def merge_proposals(llm: LoggedLLM, context: str, disease: str, proposals: dict[
 # ---- Staged workflow: dossier, pathology check, candidates, chase, experiments, model; a PI gate after each ---------
 
 INDEX_PATIENT = """STUDY DESIGN: index patient. The group "{patient}" is one patient (or a few) whose diagnosis is
-uncertain; the comparison groups are the closest known diseases, chosen as reference points, not as the answer. The
-aim is this patient's own mechanism, toward personalised medicine: what drives their disease, which known disease's
-mechanism each observation matches, what they share with each comparator and what is unique to them, and what their
-circuit implies about which treatments would or would not act on it (research hypotheses, never recommendations).
-Treat each comparator disease as a candidate diagnosis: the dossier gathers what is known about each, and every
-observation is weighed for the diagnosis it supports. With one sample per group, claims are per sample: say what this
-patient shows, not what a disease does."""
+uncertain; the comparison groups are the closest known diseases, chosen as reference points for exploring similarity,
+not as the answer. The aim is this patient's own mechanism, toward personalised medicine: what drives their disease,
+which known disease's mechanism each observation resembles and how closely, what they share with each comparator and
+what is unique to them, and what their circuit implies about which treatments would or would not act on it (research
+hypotheses, never recommendations). The dossier gathers what is known about each candidate diagnosis, each item
+labelled with the disease it describes; those are reference points, never this patient's features. The patient's own
+features are the P items: what the submission says about this patient and what the data show in them. A drug or a
+feature reported for a candidate disease is a similarity to weigh, not evidence about this patient. With one sample
+per group, claims are per sample: say what this patient shows, not what a disease does."""
 
 WORKFLOW = """The team works in six stages, and every member thinks the same way: mechanistically, asking why something
 happens, why it does not happen in the comparator groups, and what the difference is.
@@ -956,6 +958,15 @@ Disease phenotype (from the study configuration): {phenotype}
 Tools (args as named):
 {catalog}
 {previous}"""
+
+DOSSIER_INDEX = """
+This study is one patient whose diagnosis is uncertain; the comparison diseases ({candidates}) are reference points
+for exploring similarity, not the answer. So:
+- Give every item an "about": the candidate disease it describes ({candidates}), "shared" when the searches report it
+  for more than one, or "general".
+- Also give patient_features: this patient's own features as the submission (the disease phenotype and the researcher's
+  guidance) states them, one per item, in its words: presentation, course, history, anything said about the patient.
+  Never a feature of a candidate disease. No search id is needed for these: {{"text": str}}."""
 
 CHECK_PLAN_SYSTEM = f"""You plan stage 2 of a mechanistic investigation: do we see the pathology? {WORKFLOW}
 Turn the dossier into a few focused data threads, each one question an analyst answers with a handful of tool calls:
@@ -1131,7 +1142,8 @@ Rules:
 - Name only drugs listed in THERAPY TARGETS or returned by a gene_drugs call you make, with the gene they were
   listed for (the receptor, when the drug was found through a ligand's receptor). Never state a clinical stage, dose or approval: the code adds them from the lookup.
 - The drug must oppose the step it acts on (an inhibitor or antagonist of an activating step). Say which edge it breaks.
-- Say which circuits it acts on, which disease items it should improve (D ids), which circuits it should fail under
+- Say which circuits it acts on, which items it should improve (for an index patient the patient's own P ids; a
+  candidate disease's D items only show a similarity, so never list them as improved), which circuits it should fail under
   (the drug's step is absent from them), and which untested M ids it depends on (test those first).
 - For each drug say how sure it is to break the circuits if they are right, and how much it depends on one particular
   step being right. Drugs differ in breadth: CELL-TYPE TARGETS lists the cell types the circuits use, with their markers
@@ -1147,7 +1159,7 @@ Rules:
 Reply with ONE JSON object per turn: a tool call {{{{"purpose": str, "tool": str, "args": {{{{...}}}}}}}} or
 {{{{"answer": {{{{"hypotheses": [{{{{"drug": str, "target": str (gene),
 "circuits": [ranks], "breaks": str (the edge, or the cell type it removes),
-"improves": [D ids], "fails_under": [ranks], "depends_on": [M ids], "rationale": str (2-3 sentences, plain words)}}}}],
+"improves": [P or D ids], "fails_under": [ranks], "depends_on": [M ids], "rationale": str (2-3 sentences, plain words)}}}}],
 "pathways": [{{{{"name": str, "genes": [genes], "note": str (one line: drug classes and how the circuits use it)}}}}],
 "passed_over": [{{{{"drug": str, "target": str, "why": str}}}}]}}}}}}}}"""
 
@@ -1199,7 +1211,7 @@ The final circuits:
 MISSING LINKS:
 {missing}
 
-DISEASE ITEMS (from the dossier; the therapy items list what is reported for this disease):
+ITEMS TO ACCOUNT FOR (P ids: the patient's own features, for an index patient; D ids: from the dossier, each with the disease it describes):
 {items}
 
 THERAPY TARGETS (gene | circuits carrying it | summed support | untested M ids | drugs: name, stage, action, mechanism,
@@ -1255,19 +1267,46 @@ PHENOTYPE_SECTIONS = (("defining_features", "defining feature"), ("cells_states"
 DOSSIER_SECTIONS = tuple(k for k, _ in PHENOTYPE_SECTIONS if k != "beyond_single_cell")
 
 
-def phenotype_items(d: dict) -> list[tuple[str, str, str]]:
-    """The dossier's literature items, numbered D01, ... in dossier order: (id, section, text)."""
-    out = []
+def phenotype_items(d: dict, check: dict | None = None, design: str = "cohort") -> list[tuple[str, str, str]]:
+    """(id, section, text) for every item the model must account for. For an index patient, first the patient's own
+    features, P01, ...: as the submission describes them, then as the data check found them in this patient. Then the
+    dossier's literature items, D01, ... in dossier order; for an index patient each section names the candidate
+    disease the item describes ("Sweet: defining feature"), since those are reference points, not the patient."""
+    out, k = [], 0
+    if design == "index_patient":
+        for it in (d or {}).get("patient_features") or []:
+            text = str(it.get("text", "") if isinstance(it, dict) else it).strip()
+            if text:
+                out.append((f"P{len(out) + 1:02d}", "this patient, as submitted", text))
+        for key in ("expected_present", "unexpected"):
+            for it in (check or {}).get(key) or []:
+                text = str(it.get("text", "") if isinstance(it, dict) else it).strip()
+                if text:
+                    out.append((f"P{len(out) + 1:02d}", "this patient, seen in the data", text))
     for key, label in PHENOTYPE_SECTIONS:
         for it in (d or {}).get(key) or []:
             text = str(it.get("text", "") if isinstance(it, dict) else it).strip()
             if text:
-                out.append((f"D{len(out) + 1:02d}", label, text))
+                k += 1
+                about = str(it.get("about") or "").strip() if isinstance(it, dict) and design == "index_patient" else ""
+                out.append((f"D{k:02d}", f"{about}: {label}" if about else label, text))
     return out
 
 
+def run_items(ctx: dict, design: str = "cohort") -> list[tuple[str, str, str]]:
+    """phenotype_items for a run's stage outputs: the dossier and the data check's summary."""
+    return phenotype_items((ctx.get("dossier") or {}).get("dossier") or {}, (ctx.get("check") or {}).get("summary") or {},
+                           design)
+
+
+PATIENT_ACCOUNTING = ("\n\nP items are this patient's own features: the model must explain them. D items describe the "
+                      "candidate diagnoses (the disease is named before each): an explained or consistent D item is a "
+                      "similarity between this patient and that disease, a contradicted one a difference; say which.")
+
+
 def phenotype_text(items: list[tuple[str, str, str]]) -> str:
-    return ("\n\nPHENOTYPE ACCOUNTING: how does the model tie into what is known about this disease? Classify EVERY "
+    return ((PATIENT_ACCOUNTING if any(i.startswith("P") for i, _s, _t in items) else "")
+            + "\n\nPHENOTYPE ACCOUNTING: how does the model tie into what is known about this disease? Classify EVERY "
             "item below in phenotype_fit (none may be skipped): explained (a link of the model produces it; name "
             "the link as source -> target), consistent (the model does not contradict it but does not produce "
             "it), contradicted (the data or the model argue against it; say how) or not_testable (these data "
@@ -1284,12 +1323,14 @@ def dossier_text(d: dict) -> str:
                        ("mediators_genes", "Mediators and genes"), ("genetics", "Genetics"),
                        ("therapies", "Therapies and response"), ("comparator_differences", ("Differences from "
                        "comparators")), ("beyond_single_cell", "Known, beyond what single-cell RNA can measure"),
+                      ("patient_features", "This patient, as the submission describes them (not literature)"),
                       ("data_observations", "Observed in this dataset (findings, not literature)"),
                       ("novelty_leads", "Novelty leads (data not explained by the known pathology)")):
         items = [it if isinstance(it, dict) else {"text": str(it)} for it in (d.get(key) or [])]
         if items:
             parts.append(f"{title}:\n" + "\n".join(
-                f"- {it.get('text', '')} [{', '.join(_idlist(it.get('ids') or it.get('finding_ids')))}]"
+                f"- {'[' + it['about'] + '] ' if it.get('about') else ''}{it.get('text', '')} "
+                f"[{', '.join(_idlist(it.get('ids') or it.get('finding_ids')))}]"
                 + (f" (not measurable here: {it['why']}; trace to look for: {it.get('trace') or 'none'})"
                    if it.get("why") else "") for it in items))
     return "\n".join(parts) or "(empty dossier)"
@@ -1527,7 +1568,7 @@ Groups and samples: {groups}
 FINAL CIRCUITS (the PI's verdict: {verdict}):
 {circuits}
 
-DISEASE ITEMS (dossier):
+ITEMS TO ACCOUNT FOR (P ids: the patient's own features, for an index patient; D ids: from the dossier, each with the disease it describes):
 {items}
 
 AVAILABLE PANELS (result | gene | lineage | in how many disease samples the difference holds; per-sample % expressing):
@@ -1600,7 +1641,7 @@ Return JSON only:
 
 CONSENSUS_USER = """Disease phenotype: {phenotype}
 
-DISEASE ITEMS (from the dossier):
+ITEMS TO ACCOUNT FOR (P ids: the patient's own features, for an index patient; D ids: from the dossier, each with the disease it describes):
 {items}
 
 {attempts}
@@ -1635,7 +1676,7 @@ EVIDENCE LEDGER (the grounded model):
 STEPS THE DATA COULD NOT SETTLE:
 {exhausted}
 
-DISEASE ITEMS (from the dossier):
+ITEMS TO ACCOUNT FOR (P ids: the patient's own features, for an index patient; D ids: from the dossier, each with the disease it describes):
 {items}
 
 LEDGER LINKS (account for every one):
@@ -1664,7 +1705,7 @@ THE DRAFT CIRCUITS:
 
 {differences}
 
-DISEASE ITEMS (from the dossier):
+ITEMS TO ACCOUNT FOR (P ids: the patient's own features, for an index patient; D ids: from the dossier, each with the disease it describes):
 {items}
 
 Plan the search: at most {n} queries."""
