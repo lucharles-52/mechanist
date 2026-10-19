@@ -1683,13 +1683,16 @@ Then the refined circuits, in the same form as before. Keep a step's grade unles
 A circuit whose needed step is refuted goes down the ranking or is dropped, unless you say in its summary why the
 refutation does not break it. A circuit may gain steps the new input shows, or a new circuit may appear when the input
 demands one. Do not change what the input does not bear on. Keep each circuit's title unless its claim changed.
+Return every circuit you keep, changed or not. A circuit you drop goes in dropped, with the reason; a circuit you
+neither return nor drop is kept as it was.
 Tools, at most {{steps}} calls, to answer questions or check what a result implies in this data.
 Reply with ONE JSON object per turn: a tool call {{{{"purpose": str, "tool": str, "args": {{{{...}}}}}}}} or
 {{{{"answer": {{{{"accounting": [{{{{"item": "X1", "bears_on": [str (e.g. "circuit 1 step 3")], "verdict":
 "supports"|"refutes"|"neither"|"answered"|"weighed", "reason": str, "ids": [ids]}}}}], "changes": str (3-6 sentences:
 what moved and why), "circuits": [ the circuits, each {{{{"rank", "title", "summary", "root", "edges": [{{{{"source",
 "target", "via", "status": "bench"|"refuted"|"observed"|"likely"|"analogy"|"speculative", "ids", "note"}}}}], "loops",
-"phenotype", "predictions", "analogue", "unused", "confidence"}}}} ], "ranking": str}}}}}}}}"""
+"phenotype", "predictions", "analogue", "unused", "confidence"}}}} ], "dropped": [{{{{"title": str, "reason": str}}}}],
+"ranking": str}}}}}}}}"""
 
 REFINE_USER = """{context}
 

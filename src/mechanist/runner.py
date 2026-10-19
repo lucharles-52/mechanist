@@ -1706,11 +1706,12 @@ class Runner:
             results: list[ToolResult] = []
             execute, catalog = self._restricted(tb, CIRCUIT_TOOLS, results, start)
             xids = {x["id"] for x in ver["items"]}
-            st: dict = {"circuits": [], "ranking": "", "accounting": [], "changes": "", "objections": [], "steps": []}
+            st: dict = {"circuits": [], "ranking": "", "accounting": [], "changes": "", "objections": [], "steps": [],
+                        "dropped": []}
 
             def draft(previous: str, tag: str):
                 user = agents.REFINE_USER.format(context=context, phenotype=phen, version=ver.get("parent_version", 1),
-                                                 circuits=json.dumps(parent, indent=1)[:24000], plan=plan,
+                                                 circuits=json.dumps(parent, indent=1), plan=plan,
                                                  items=versions.items_text(ver["items"]), catalog=catalog,
                                                  previous=previous)
                 ans, steps = agents.run_thread(self.llm, tag, agents.REFINE_SYSTEM.format(steps=self.cfg.circuit_steps),
@@ -1719,6 +1720,14 @@ class Runner:
                 if ans is None:
                     return
                 cs = [c for c in (self._circuit(c, i) for i, c in enumerate(ans.get("circuits") or [], 1)) if c]
+                dropped = [x for x in ans.get("dropped") or [] if isinstance(x, dict) and x.get("title")]
+                gone = {str(x["title"]).strip().lower() for x in dropped} | {c.title.strip().lower() for c in cs}
+                for pc in parent:  # a circuit neither returned nor dropped is kept as it was, at the end
+                    if str(pc.get("title", "")).strip().lower() not in gone:
+                        kept = self._circuit({**pc, "rank": len(cs) + 1}, len(cs) + 1)
+                        if kept is not None:
+                            cs.append(kept)
+                st["dropped"] = dropped
                 known = inv.known_ids({f.id for f in fs}, prior + results) | xids
                 objs = inv.check_circuits([c for c in cs], known, self._lit_ok(prior) | self._lit_ok(results))
                 objs += inv.check_bench(cs, ver["items"], parent)
@@ -1746,6 +1755,7 @@ class Runner:
                                  cap=self.cfg.circuit_review_cap)
             return {"circuits": [c.model_dump() for c in st["circuits"]], "ranking": st["ranking"],
                     "accounting": st["accounting"], "changes": st["changes"], "items": ver["items"],
+                    "dropped": st["dropped"],
                     "objections": st["objections"], "steps": st["steps"], "reviews": reviews, "results": results}
         return self.stage("refine", ["circuits"], fn)
 
