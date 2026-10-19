@@ -243,6 +243,7 @@ class Runner:
     def __init__(self, cfg: RunConfig, run_dir: Path, llm_backend=None, cells: CellData | None = None,
                  lit_fetch=None, ot_fetch=None):
         self.cfg = cfg
+        inv.MIN_N = 1 if cfg.design == "index_patient" else 2  # one patient: every group comparison is per sample
         self.dir = run_dir
         self.dir.mkdir(parents=True, exist_ok=True)
         self.state_path = self.dir / "state.json"

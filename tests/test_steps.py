@@ -598,3 +598,17 @@ def test_index_patient_drugs_rank_on_the_patients_circuits_and_name_the_candidat
     cohort, _ = inv.check_therapies(hyps, lk, circuits, [], items, "drugx is used in DiseaseB", "Patient")
     # every design: the drug on the better-supported circuit first; use in the disease does not lift it
     assert [h["drug"] for h in cohort] == ["DRUGY", "DRUGX"] and cohort[1]["level"] == "in use for this disease"
+
+
+
+def test_one_sample_groups_are_compared_for_an_index_patient_only():
+    groups = {"Patient": ["s1"], "Other": ["s2"], "Ref": ["s3"]}
+    vals = {"s1": 20.0, "s2": 2.0, "s3": 1.0}
+    old = inv.MIN_N
+    try:
+        inv.MIN_N = 2  # a cohort: one sample per group shows no consistency
+        assert not inv.ligand_differs(vals, groups, "Patient")
+        inv.MIN_N = 1  # an index patient: the per-sample comparison is the design
+        assert inv.ligand_differs(vals, groups, "Patient")
+    finally:
+        inv.MIN_N = old

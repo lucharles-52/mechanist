@@ -22,6 +22,7 @@ import pandas as pd
 
 from mechanist.adapters.base import CellSpec, LoadedStudy, group_order
 from mechanist.findings import digest_line
+from mechanist import investigate as _inv
 from mechanist.investigate import ligand_differs, receptor_ok
 from mechanist.knowledge import KnowledgeBase, KnowledgeError, Literature
 from mechanist.records import Finding, ToolCall, ToolResult
@@ -181,14 +182,14 @@ def _agreement(values: dict[str, float | None], samples: pd.DataFrame, order: li
                 and not np.isnan(values[s])]
     case = order[0]
     cv = vals(case)
-    if len(cv) < 2:
+    if len(cv) < _inv.MIN_N:
         return ""
     out = []
     for g in order:
         if g == case:
             continue
         rv = vals(g)
-        if len(rv) < 2:
+        if len(rv) < _inv.MIN_N:
             continue
         if min(cv) > max(rv):
             out.append(f"all {case} > all {g}")
@@ -724,7 +725,7 @@ class Toolbox:
         groups = {g: [e.samples.index(s) for s in ss if s in e.samples] for g, ss in self.study.dataset.groups.items()}
         ci, ri = groups.get(self.case, []), groups.get(self.ref, [])
         m = e.pct[li] if e.pct is not None else e.cpm[li]  # (sample, gene)
-        if len(ci) < 2 or len(ri) < 2:
+        if len(ci) < _inv.MIN_N or len(ri) < _inv.MIN_N:
             return None
         up = np.where(np.nanmin(m[ci], axis=0) > np.nanmax(m[ri], axis=0))[0]
         if len(up) < 20:
@@ -976,11 +977,11 @@ class Toolbox:
 
         def separates(ti):
             cv = ts.scores[li, ci, ti]
-            if len(cv) < 2 or np.isnan(cv).any():
+            if len(cv) < _inv.MIN_N or np.isnan(cv).any():
                 return [], 0
-            up = [g for g, ix in groups.items() if g != self.case and len(ix) >= 2
+            up = [g for g, ix in groups.items() if g != self.case and len(ix) >= _inv.MIN_N
                   and not np.isnan(rv := ts.scores[li, ix, ti]).all() and cv.min() > np.nanmax(rv)]
-            dn = [g for g, ix in groups.items() if g != self.case and len(ix) >= 2
+            dn = [g for g, ix in groups.items() if g != self.case and len(ix) >= _inv.MIN_N
                   and not np.isnan(rv := ts.scores[li, ix, ti]).all() and cv.max() < np.nanmin(rv)]
             return (up, 1) if up else (dn, -1) if dn else ([], 0)
 
@@ -1217,7 +1218,7 @@ class Toolbox:
     def _detected(self, vals, groups) -> bool:
         """Detected (≥1%) in every disease sample: too low to count as expressed, too high to call absent."""
         cv = [vals[s] for s in groups[self.case] if vals.get(s) is not None]
-        return len(cv) >= 2 and min(cv) >= 1.0
+        return len(cv) >= _inv.MIN_N and min(cv) >= 1.0
 
     def _share(self, lineage: str) -> dict[str, float]:
         c = self.cells
@@ -1234,7 +1235,7 @@ class Toolbox:
         if own is None:
             raise ToolError(f"{gene} is not in the single-cell object")
         cv = [own[x] for x in groups.get(case, []) if own.get(x) is not None]
-        if len(cv) < 2 or min(cv) < MIN_PCT or not ligand_differs(own, groups, case):
+        if len(cv) < _inv.MIN_N or min(cv) < MIN_PCT or not ligand_differs(own, groups, case):
             # premise check: do not explain an induction the data does not show
             return ((f"PREMISE FAILS: {gene} is not elevated in {cell} in this data, so there is no induction to "
                      f"explain. % of {cell} cells expressing {gene}: {_fmt(own, c.samples, self.order, '%')}. Every "
@@ -1289,10 +1290,10 @@ class Toolbox:
             best = None
             for lin, vals in self._pct_table(x).items():
                 cv = [vals[s] for s in groups[case] if vals.get(s) is not None]
-                if len(cv) < 2 or sum(cv) / len(cv) < MIN_PCT or not ligand_differs(vals, groups, case):
+                if len(cv) < _inv.MIN_N or sum(cv) / len(cv) < MIN_PCT or not ligand_differs(vals, groups, case):
                     continue
                 sep = [g for g, ss in groups.items() if g != case
-                       and len(rv := [vals[s] for s in ss if vals.get(s) is not None]) >= 2 and min(cv) > max(rv)]
+                       and len(rv := [vals[s] for s in ss if vals.get(s) is not None]) >= _inv.MIN_N and min(cv) > max(rv)]
                 others = [vals[s] for g, ss in groups.items() if g != case for s in ss if vals.get(s) is not None]
                 score = (len(sep), sum(cv) / len(cv) - (sum(others) / len(others) if others else 0))
                 if best is None or score > best[0]:

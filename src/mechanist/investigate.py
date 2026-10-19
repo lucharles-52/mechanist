@@ -195,14 +195,20 @@ def receptor_ok(per_sample: dict, groups: dict[str, list[str]] | None, case: str
     return not rv or sum(cv) / len(cv) > sum(rv) / len(rv)
 
 
+# Samples a group needs before "every sample of one group beyond every sample of another" is said. A cohort needs two,
+# so the claim is a consistency; an index-patient study is one patient against single reference samples by design, so
+# one is enough and every such claim is per sample. The runner sets it from the study design.
+MIN_N = 2
+
+
 def ligand_differs(per_sample: dict, groups: dict[str, list[str]] | None, case: str | None) -> bool:
     """A ligand counts if, in some lineage, every disease sample is above every sample of at least one other group."""
     if not groups or not case:
         return True
     cv = _vals(per_sample, groups.get(case, []))
-    if len(cv) < 2:
+    if len(cv) < MIN_N:
         return False
-    return any(len(rv := _vals(per_sample, ss)) >= 2 and min(cv) > max(rv) for g, ss in groups.items() if g != case)
+    return any(len(rv := _vals(per_sample, ss)) >= MIN_N and min(cv) > max(rv) for g, ss in groups.items() if g != case)
 
 
 # What counts as a TEST of a candidate inducer: evidence that can discriminate between candidates, in the cell that
