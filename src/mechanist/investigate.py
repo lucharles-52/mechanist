@@ -1075,17 +1075,16 @@ def expand_target(name: str, symbols: set[str], receptors_of: Callable[[str], li
         fam = sorted(x for x in symbols if re.fullmatch(re.escape(g) + r"[A-Z0-9]{1,3}", x))[:members]
         out = [{"gene": x, "via": f"member of {g}"} for x in fam] or [{"gene": g, "via": "named"}]
     seen = {x["gene"] for x in out}
+    of: dict[str, list[str]] = {}  # receptor subunit -> every ligand here it binds, so the label names them all
     for lig in [x["gene"] for x in out]:
         try:
             recs = receptors_of(lig)
         except Exception:  # noqa: BLE001 - not a ligand in the resource
             recs = []
-        subs = list(dict.fromkeys(u.upper() for r in recs for u in str(r).split("_") if u))[:per_ligand]
-        for r in subs:
+        for r in list(dict.fromkeys(u.upper() for r in recs for u in str(r).split("_") if u))[:per_ligand]:
             if r not in seen:
-                seen.add(r)
-                out.append({"gene": r, "via": f"receptor of {lig}"})
-    return out
+                of.setdefault(r, []).append(lig)
+    return out + [{"gene": r, "via": "receptor of " + ", ".join(ligs)} for r, ligs in of.items()]
 
 
 def considered_drugs(targets: list[dict], lookups: dict[str, dict], hyps: list[dict], objs: list,

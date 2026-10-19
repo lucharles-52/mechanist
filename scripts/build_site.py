@@ -287,7 +287,8 @@ def build(run: Path, portal: bool, human: bool = True) -> str:
     out = (tpl.replace("<!--SPRITE-->", cellfig.icon_defs(keys)).replace("<!--FIGS-->", figs)
            .replace("<!--RUNNINGHEAD-->", head).replace("<!--MARK-->", mark.svg())
            .replace("<!--FAVICON-->", mark.favicon_link()).replace("<!--STUDY-->", esc(study))
-           .replace("<!--BACK-->", '<a class="back" href="../index.html">Study results</a>' if portal else "")
+           .replace("<!--BACK-->", ('<a class="back" href="../index.html">Study results</a>' if portal else "")
+                    + (' <a class="back" href="analyses.html">Analyses</a>' if (run / "site" / "analyses.html").exists() else ""))
            .replace("/*DATA*/", json.dumps(data, ensure_ascii=False).replace("</", "<\\/")))
     if portal:
         out = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'

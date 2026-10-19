@@ -492,7 +492,8 @@ def test_a_family_target_is_looked_up_through_its_members_and_their_receptors():
         return pairs[g]
     got = inv.expand_target("FAM", syms, receptors_of)
     assert [x["gene"] for x in got] == ["FAMA", "FAMB", "FAMRN", "FAMX1", "RECA", "RECB"]
-    assert got[0]["via"] == "member of FAM" and got[4]["via"] == "receptor of FAMA"
+    assert got[0]["via"] == "member of FAM" and got[4]["via"] == "receptor of FAMA, FAMB, FAMRN"
+    assert got[5]["via"] == "receptor of FAMA, FAMB"
     assert inv.expand_target("OTHER", syms, receptors_of) == [{"gene": "OTHER", "via": "named"}]
     # an unknown name is still looked up as named (Open Targets may know an alias)
     assert inv.expand_target("ZZZ", syms, receptors_of) == [{"gene": "ZZZ", "via": "named"}]
