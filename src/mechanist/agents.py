@@ -964,9 +964,11 @@ This study is one patient whose diagnosis is uncertain; the comparison diseases 
 for exploring similarity, not the answer. So:
 - Give every item an "about": the candidate disease it describes ({candidates}), "shared" when the searches report it
   for more than one, or "general".
-- Also give patient_features: this patient's own features as the submission (the disease phenotype and the researcher's
-  guidance) states them, one per item, in its words: presentation, course, history, anything said about the patient.
-  Never a feature of a candidate disease. No search id is needed for these: {{"text": str}}."""
+- Also give patient_features, inside the answer object beside the other sections: this patient's clinical features as
+  the submission (the disease phenotype and the researcher's guidance) states them, one per item, in its words: what
+  the patient has (lesions, signs, symptoms), course, history, other conditions, treatment so far. Not the study
+  design, the samples or the question asked, and never a feature of a candidate disease. No search id is needed:
+  "patient_features": [{{"text": str}}]. An empty list when the submission says nothing clinical about the patient."""
 
 CHECK_PLAN_SYSTEM = f"""You plan stage 2 of a mechanistic investigation: do we see the pathology? {WORKFLOW}
 Turn the dossier into a few focused data threads, each one question an analyst answers with a handful of tool calls:
