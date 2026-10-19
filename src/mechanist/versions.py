@@ -165,6 +165,16 @@ def items_text(items: list[dict]) -> str:
     return "\n\n".join(out)
 
 
+def portal_names(cfg) -> dict:
+    """The Results page's names for the comparison a Mechanist figure shows: the run's compartment, and the portal
+    labels of its case and reference groups (the config maps portal labels to the run's own names)."""
+    opts = cfg.adapter_options or {}
+    back = {v: k for k, v in (opts.get("groups") or {}).items()}
+    ref = opts.get("reference")
+    return {"compartment": opts.get("compartment", ""), "group": back.get(cfg.disease, cfg.disease),
+            "reference": back.get(ref, ref or "")}
+
+
 def diff(old: dict, new: dict) -> dict:
     """What changed from the parent version to this one, by code: circuits, step grades, experiments, drugs."""
     def circs(ctx):

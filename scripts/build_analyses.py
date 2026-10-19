@@ -110,7 +110,8 @@ def _genes(v) -> list[str]:
     return [str(g) for g in (v if isinstance(v, (list, tuple)) else [v]) if g]
 
 
-def _strips_from(nested: dict, unit: str = "%", per: int = 4, total: int = 12, floor: float = 5.0) -> tuple[list, int]:
+def _strips_from(nested: dict, unit: str = "%", per: int = 4, total: int = 12, floor: float = 5.0,
+                 lin: str | None = None) -> tuple[list, int]:
     """{name: {sub: {sample: value}}} -> strip panels, the strongest sub-panels of each name first."""
     panels, left = [], 0
     for name, subs in (nested or {}).items():
@@ -120,7 +121,7 @@ def _strips_from(nested: dict, unit: str = "%", per: int = 4, total: int = 12, f
                         key=lambda kv: -max([v for v in kv[1].values() if v is not None] or [0]))
         keep = [kv for kv in ranked if max([v for v in kv[1].values() if v is not None] or [0]) >= floor][:per]
         left += len(ranked) - len(keep)
-        panels += [{"title": name, "sub": sub, "unit": unit, "vals": vals} for sub, vals in keep]
+        panels += [{"title": name, "sub": sub, "unit": unit, "vals": vals, "lin": lin or sub} for sub, vals in keep]
     return panels[:total], left + max(0, len(panels) - total)
 
 
@@ -134,7 +135,7 @@ def figure(row: dict) -> dict:
             return {"title": f"{g}: share of cells expressing, by cell type", "kind": "strips", "panels": panels,
                     "note": f"{left} weaker cell types (below 5% in every sample) not drawn" if left else ""}
         if t == "gene_by_state":
-            panels, left = _strips_from(d, floor=1.0)
+            panels, left = _strips_from(d, floor=1.0, lin=lin)
             return {"title": f"{g} in {lin}: share of cells expressing, by state", "kind": "strips", "panels": panels,
                     "note": f"{left} states not drawn" if left else ""}
         if t == "lineage_share":
@@ -153,7 +154,7 @@ def figure(row: dict) -> dict:
         if t == "upstream_screen":  # the tool's own verdict, its first sentence: never a paraphrase of it
             first = re.split(r"(?<=\.)\s", re.sub(r"^PREMISE (FAILS|HOLDS):\s*", "", row.get("rerun") or ""), 1)[0]
             return {"title": f"Is {g} raised in {lin}?", "kind": "strips", "verdict": first,
-                    "panels": [{"title": g, "sub": lin, "unit": "%", "vals": d.get("pct") or {}}]}
+                    "panels": [{"title": g, "sub": lin, "unit": "%", "vals": d.get("pct") or {}, "lin": lin}]}
         if t == "pathway_footprint":
             sets = d.get("sets") or {}
             return {"title": f"Pathway and regulator footprints in {d.get('lineage') or lin}", "kind": "strips",
@@ -223,7 +224,9 @@ def page_data(run: Path, rows: list[dict]) -> dict:
                        "cited_by": r["cited_by"], "fig": _clean(f), "recorded": r["recorded"] if r["status"] != "same"
                        else "", "raw": r["rerun"], "args": {k: v for k, v in r["args"].items() if k not in ("code", "purpose")}}
     exps = {e.get("id"): e.get("title", "") for e in (ctx.get("experiment") or {}).get("experiments") or []}
+    from mechanist import versions
     return {"study": (ctx.get("load") or {}).get("study", ""), "groups": [[g, groups[g]] for g in order],
+            "portal": versions.portal_names(cfg),
             "short": {s: short_sample(s) for v in groups.values() for s in v}, "circuits": circuits,
             "experiments": exps, "analyses": an, "design": cfg.design}
 
@@ -298,6 +301,9 @@ PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 .rest>details{border-top:1px solid var(--ink);margin-top:14px}.rest>details>summary{cursor:pointer;padding:12px 0;font:600 17px var(--serif)}
 .rest>details>summary small{font:400 13px var(--label);color:var(--muted);margin-left:8px}
 .empty{font:400 15px var(--serif);color:var(--muted);margin:30px 0}
+.inres{font:500 12px var(--label);color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:2px;margin-left:auto;white-space:nowrap}
+.inres:hover{color:var(--ink);text-decoration-color:currentColor}
+
 ::selection{background:var(--sel-wash)}
 @media (max-width:640px){.bars{grid-template-columns:1fr}.fig .two{grid-template-columns:1fr}.tools{position:static}}
 </style></head><body>
@@ -384,6 +390,11 @@ function verdict(p){
   if (Math.max(...own) < Math.min(...rest)) return [`every ${CASE} sample below every other sample`, true];
   return ["overlaps the other samples", false];
 }
+/* "Open in Results": the same genes and cell type on the study's Results screen, as a reviewer would look them up */
+const resultsHref = (genes, lin) => { const P = D.portal || {}, up = /\/v\d+\/[^/]*$/.test(location.pathname) ? "../../" : "../";
+  const q = new URLSearchParams({compartment: P.compartment || "", lineage: lin || "", group: P.group || "", reference: P.reference || "", pane: "map", genes: [].concat(genes).filter(Boolean).join(",")});
+  return `${up}index.html#explore?${q.toString()}`; };
+const inRes = (genes, lin) => `<a class="inres" href="${resultsHref(genes, lin)}" target="_top" title="Open ${esc([].concat(genes).join(", "))}${lin ? " in " + esc(lin) : ""} on the study's Results screen">in Results ↗</a>`;
 const OK = `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5l2.6 2.5L10 3.5"/></svg>`;
 function fig(id, where){
   const a = D.analyses[id], f = a.fig;
@@ -391,7 +402,7 @@ function fig(id, where){
     : `<span class="ok bad">${a.status === "differs" ? "differs on re-run" : "re-run failed"}</span>`;
   let body = "";
   if (f.kind === "strips") body = (f.genes ? `<p class="gl">${esc(f.genes.join(", "))}</p>` : "") +
-    `<div class="panels">${f.panels.map(p => { const v = verdict(p); return `<figure class="pn"><figcaption><span class="g">${esc(p.title)}</span>${esc(p.sub || "")}</figcaption>${strip(p)}${v ? `<div class="vd ${v[1] ? "hold" : ""}">${esc(v[0])}</div>` : ""}</figure>`; }).join("")}</div>`;
+    `<div class="panels">${f.panels.map(p => { const v = verdict(p); return `<figure class="pn"><figcaption><span class="g">${esc(p.title)}</span>${esc(p.sub || "")}${p.lin ? inRes(p.title, p.lin) : ""}</figcaption>${strip(p)}${v ? `<div class="vd ${v[1] ? "hold" : ""}">${esc(v[0])}</div>` : ""}</figure>`; }).join("")}</div>`;
   else if (f.kind === "coex") body = `<div class="tb"><table><tr><th>Sample</th><th>Cells</th><th>${esc(f.a.join("/"))}</th><th>${esc(f.b.join("/"))}</th><th>Both</th><th>Both if independent</th><th>Ratio</th></tr>${f.rows.map(r => `<tr><td><span class="sw" style="background:${GCOL[r[1]] || "var(--muted)"}"></span>${esc(r[0])}</td><td class="r">${r[2] ?? "–"}</td><td class="r">${num(r[3], "%")}</td><td class="r">${num(r[4], "%")}</td><td class="r"><b>${num(r[5], "%")}</b></td><td class="r">${num(r[6], "%")}</td><td class="r">${r[7] == null ? "–" : "×" + r[7].toFixed(2)}</td></tr>`).join("")}</table></div><p class="nt">A ratio near 1 means the two are made by the same cells only as often as chance would put them together; above 1, the same cells; below 1, different cells.</p>`;
   else if (f.kind === "table") body = `<div class="tb"><table><tr>${f.cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr>${f.rows.map(r => `<tr>${r.map((v, i) => `<td class="${(f.pct || []).includes(i) ? "r" : ""}">${i === 0 ? `<span class="sw" style="background:${GCOL[r[1]] || "var(--muted)"}"></span>` : ""}${(f.pct || []).includes(i) ? num(v, "%") : esc(v ?? "–")}</td>`).join("")}</tr>`).join("")}</table></div>`;
   else if (f.kind === "bars") { const mx = Math.max(1, ...f.up.concat(f.down).map(r => r[1] || 0));

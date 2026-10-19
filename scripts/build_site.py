@@ -290,7 +290,7 @@ def build(run: Path, portal: bool, human: bool = True) -> str:
             "not_testable": ex.get("not_testable") or [], "therapy": th.get("hypotheses") or [], "missing": ms,
             "considered": th.get("considered") or [], "trace": full_record(dirs, res), "design": design,
             "version": versions.info(run), "family": versions.family(run), "done": ex.get("done") or [],
-            "changes": changes(run, ctx),
+            "changes": changes(run, ctx), "portal": versions.portal_names(rcfg),
             "stages": stages, "record": record, "results": results, "chat": chat,
             "counts": {"tools": len(res), "lit": sum(1 for r in res.values() if r.get("tool") == "literature_search"),
                        "gates": gates, "attempts": len(attempts) or 1},

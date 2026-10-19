@@ -153,6 +153,8 @@ p.secsub{font-size:15.5px;color:var(--ink-2);max-width:70ch;margin:0 0 16px}
 .changed li small{display:block;font:400 12.5px var(--label);color:var(--muted)}
 .changed .xi b{font:600 12.5px var(--label);margin-right:6px}.changed .oc{font:600 11.5px var(--label);letter-spacing:.04em;text-transform:uppercase;margin-left:6px}
 .changed .oc.positive{color:var(--ink)}.changed .oc.negative{color:var(--sel)}.changed .oc.mixed,.changed .oc.inconclusive{color:var(--muted)}
+.inres{font:500 12px var(--label);color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:2px;margin-left:auto;white-space:nowrap}
+.inres:hover{color:var(--ink);text-decoration-color:currentColor}
 .consid>details{border-top:1px solid var(--hair)}.consid>details>summary{cursor:pointer;padding:9px 0;font:600 14.5px var(--label)}
 .consid>details>summary small{font:400 12.5px var(--label);color:var(--muted);margin-left:8px}
 .consid .lk{margin:0 0 10px;font-size:14px;line-height:1.45}.consid .lk b{font:600 13px var(--label)}
@@ -491,6 +493,12 @@ const QSUB = {presence:"protein, right cells, disease vs comparators", rule_out:
 const TIER = {in_data:"this dataset", archived_tissue:"archived tissue", spatial:"spatial", ex_vivo:"ex vivo", in_vitro:"in vitro", in_vivo:"in vivo", cohort:"new cohort"};
 const TORDER = ["in_data","archived_tissue","spatial","ex_vivo","in_vitro","in_vivo","cohort"];
 const gene = g => `<i class="g" data-gs="${esc(g)}" tabindex="0">${esc(g)}</i>`;
+/* "Open in Results": the same genes and cell type on the study's Results screen, as a reviewer would look them up */
+const resultsHref = (genes, lin) => { const P = D.portal || {}, up = /\/v\d+\/[^/]*$/.test(location.pathname) ? "../../" : "../";
+  const q = new URLSearchParams({compartment: P.compartment || "", lineage: lin || "", group: P.group || "", reference: P.reference || "", pane: "map", genes: [].concat(genes).filter(Boolean).join(",")});
+  return `${up}index.html#explore?${q.toString()}`; };
+const inRes = (genes, lin) => `<a class="inres" href="${resultsHref(genes, lin)}" target="_top" title="Open ${esc([].concat(genes).join(", "))}${lin ? " in " + esc(lin) : ""} on the study's Results screen">in Results ↗</a>`;
+
 const line = (w, da, col = "var(--ink)") => `<svg width="30" height="8" aria-hidden="true"><line x1="1" y1="4" x2="29" y2="4" stroke="${col}" stroke-width="${w}" ${da?`stroke-dasharray="${da}"`:""}/></svg>`;
 const sline = s => s === "bench" ? line(4.4) : s === "refuted" ? line(1.6, "1 3", "var(--sel)") : line(s==="observed"?3.2:1.6, s==="speculative"?"6 4":s==="analogy"?"2 4":"");
 const evGlyph = s => `<svg width="22" height="8" aria-hidden="true"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--ink)" stroke-width="${s==="observed"?3:1.5}" ${s==="speculative"?'stroke-dasharray="5 3"':s==="analogy"?'stroke-dasharray="2 3"':""}/></svg>`;
@@ -565,7 +573,7 @@ function plate(root, c){
     $$(".steps button", root).forEach(b => b.setAttribute("aria-pressed", String(set.has(+b.dataset.s)))); }
   function showStep(i){ const s = byStep[i]; if (!s) return; mark([i]);
     const {ms, exps, drugs} = linksFor(c.rank, s);
-    const strips = s.strips.length ? `<div class="strips">${s.strips.map(st => `<figure class="strip"><figcaption>${gene(st.gene)}<span>${esc(st.lin)}</span><button type="button" class="rid" data-rid="${st.rid}">${st.rid}</button></figcaption>${strip(st)}<div class="vd ${st.verdict.startsWith("every") ? "hold" : ""}">${esc(st.verdict)}</div></figure>`).join("")}</div>
+    const strips = s.strips.length ? `<div class="strips">${s.strips.map(st => `<figure class="strip"><figcaption>${gene(st.gene)}<span>${esc(st.lin)}</span>${inRes(st.gene, st.lin)}<button type="button" class="rid" data-rid="${st.rid}">${st.rid}</button></figcaption>${strip(st)}<div class="vd ${st.verdict.startsWith("every") ? "hold" : ""}">${esc(st.verdict)}</div></figure>`).join("")}</div>
       <div class="legend">${GROUPS.map(g => `<span><i class="dotk" style="background:${GCOL[g]}"></i>${esc(g)}</span>`).join("")}<span>% of the lineage's cells expressing, one dot per sample</span></div>`
       : s.card ? "" : `<p class="quiet">No per-sample measurement stands behind this step${s.ids.length ? "; it rests on the results below" : ", which rests on reasoning alone"}.</p>`;
     pb.innerHTML = `<div class="pl">B <span>Step ${s.i} of ${c.steps.length}</span></div>
