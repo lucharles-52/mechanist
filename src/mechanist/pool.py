@@ -14,14 +14,32 @@ portal bridge import it without Mechanist's dependencies.
 
 from __future__ import annotations
 
+import datetime as dt
 import fcntl
+import glob
 import json
 import os
+import re
 import time
 from contextlib import contextmanager
 from pathlib import Path
 
-REST_S = 1800  # an account that ran out rests this long before it is tried again
+REST_S = 1800  # an account that ran out rests this long before it is tried again, unless its reset time is known
+RESET_RE = re.compile(r"(?:session|usage|weekly) limit.*?resets\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)", re.I | re.S)
+
+
+def reset_at(message: str, now: float | None = None) -> float | None:
+    """When a seat's limit lifts, from the CLI's message ("... resets 10:40am (America/New_York)"), in local time."""
+    found = list(RESET_RE.finditer(message or ""))
+    if not found:
+        return None
+    m = found[-1]
+    h = int(m.group(1)) % 12 + (12 if m.group(3).lower() == "pm" else 0)
+    t0 = dt.datetime.fromtimestamp(now or time.time())
+    t = t0.replace(hour=h, minute=int(m.group(2) or 0), second=0, microsecond=0)
+    if t <= t0:
+        t += dt.timedelta(days=1)
+    return (t + dt.timedelta(minutes=2)).timestamp()
 
 
 def folder() -> Path:
@@ -102,13 +120,37 @@ def read_state() -> dict:
         return {}
 
 
+def ready_at(account: str, state: dict | None = None) -> float:
+    """When the account may be tried again: its known reset time, else REST_S after it ran out (0: never ran out)."""
+    e = (read_state() if state is None else state).get(account_id(account)) or {}
+    out = float(e.get("ran_out_at") or 0)
+    if not out:
+        return 0.0
+    r = float(e.get("resets_at") or 0)
+    return r if r > out else out + REST_S
+
+
 def resting(account: str, now: float | None = None) -> bool:
-    t = (read_state().get(account_id(account)) or {}).get("ran_out_at") or 0
-    return (now or time.time()) - float(t) < REST_S
+    return (now or time.time()) < ready_at(account)
 
 
-def mark(account: str, event: str) -> None:
-    """event: 'used' (it answered) or 'ran_out' (out of usage or credit). 'used' is written at most once a minute."""
+def seats() -> list[str]:
+    """Every saved seat (oauth_token, oauth_token_<name>) as an account string, whether or not a run has seen it."""
+    f = folder()
+    out = ["subscription"] if (f / "oauth_token").exists() else []
+    return out + [f"subscription:{p}" for p in sorted(glob.glob(str(f / "oauth_token_*"))) if Path(p).is_file()]
+
+
+def next_ready(now: float | None = None) -> float:
+    """The earliest time a seat that is switched on can be tried (now or earlier: one is ready)."""
+    st, off = read_state(), set(read_order()["off"])
+    times = [ready_at(a, st) for a in seats() if account_id(a) not in off]
+    return min(times) if times else (now or time.time()) + REST_S
+
+
+def mark(account: str, event: str, resets_at: float | None = None) -> None:
+    """event: 'used' (it answered) or 'ran_out' (out of usage or credit, with its reset time when the message gave
+    one). 'used' is written at most once a minute."""
     i, now = account_id(account), time.time()
     if event == "used" and now - float((read_state().get(i) or {}).get("used_at") or 0) < 60:
         return
@@ -118,6 +160,10 @@ def mark(account: str, event: str) -> None:
             e["used_at"] = now
         else:
             e["ran_out_at"] = now
+            if resets_at:
+                e["resets_at"] = resets_at
+            else:
+                e.pop("resets_at", None)
 
 
 def status(accounts: list[str]) -> list[dict]:
@@ -129,9 +175,9 @@ def status(accounts: list[str]) -> list[dict]:
     for a in chain + [a for a in accounts if a not in chain]:
         i = account_id(a)
         e = st.get(i) or {}
-        out = float(e.get("ran_out_at") or 0)
+        until = ready_at(a, st)
         rows.append({"id": i, "kind": kind(a), "on": i not in off, "position": chain.index(a) + 1 if a in chain else None,
-                     "resting_until": out + REST_S if now - out < REST_S else None,
+                     "resting_until": until if until > now else None,
                      "used_at": e.get("used_at"), "ran_out_at": e.get("ran_out_at")})
     return rows
 

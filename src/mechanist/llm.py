@@ -531,19 +531,31 @@ class ClaudeAccounts:
     REST_S = 1800
 
     def __init__(self, cfg: LLMConfig):
-        import glob
-        import os
         if not cfg.external_ok:
             raise DataGuardError("the claude backend sends prompts to Anthropic; set llm.external_ok: true")
         self.cfg = cfg
         self.accounts: list[str] = []
-        for a in cfg.accounts:
+        self._discover()
+        if not self.accounts:
+            raise ValueError("no Claude account found: save an API key (bench/save_api_key.sh) or the subscription "
+                             "token (~/.config/claude/oauth_token)")
+        self.name = f"claude:{cfg.model or 'default'}" + (f"+threads:{cfg.thread_model}" if cfg.thread_model else "")
+        self._backends: dict[str, Backend] = {}
+        self._resting: dict[str, float] = {}  # account -> until when it rests
+        self._lock = threading.Lock()
+        self.on_switch = None  # called with each move to another account (LoggedLLM puts it in the transcript)
+
+    def _discover(self) -> None:
+        """Add the accounts the configured patterns match now: a seat saved while a run is going joins it."""
+        import glob
+        import os
+        for a in self.cfg.accounts:
             a = a.strip()
             if a.startswith("key:"):
                 files = sorted(glob.glob(os.path.expanduser(a[4:])))
                 self.accounts += [f"key:{f}" for f in files if Path(f).is_file() and f"key:{f}" not in self.accounts]
             elif a == "subscription":
-                if (Path.home() / ".config" / "claude" / "oauth_token").exists() or os.environ.get(
+                if a not in self.accounts and (Path.home() / ".config" / "claude" / "oauth_token").exists() or os.environ.get(
                         "CLAUDE_CODE_OAUTH_TOKEN"):
                     self.accounts.append(a)
             elif a.startswith("subscription:"):  # pooled Team seats: one saved token per member (bench/save_token.sh)
@@ -552,14 +564,6 @@ class ClaudeAccounts:
                                   if Path(f).is_file() and f"subscription:{f}" not in self.accounts]
             else:
                 raise ValueError(f"unknown Claude account {a!r} (use key:<file>, subscription or subscription:<file>)")
-        if not self.accounts:
-            raise ValueError("no Claude account found: save an API key (bench/save_api_key.sh) or the subscription "
-                             "token (~/.config/claude/oauth_token)")
-        self.name = f"claude:{cfg.model or 'default'}" + (f"+threads:{cfg.thread_model}" if cfg.thread_model else "")
-        self._backends: dict[str, Backend] = {}
-        self._resting: dict[str, float] = {}  # account -> when it ran out
-        self._lock = threading.Lock()
-        self.on_switch = None  # called with each move to another account (LoggedLLM puts it in the transcript)
 
     @staticmethod
     def label(account: str) -> str:
@@ -589,22 +593,25 @@ class ClaudeAccounts:
         from mechanist import pool
         last: Exception | None = None
         now = time.time()
+        with self._lock:
+            self._discover()
         chain = pool.ordered(self.accounts)  # the shared pool's order (pool.json), re-read every call
         with self._lock:
-            ready = [a for a in chain if now - self._resting.get(a, 0.0) > self.REST_S and not pool.resting(a, now)]
+            ready = [a for a in chain if now >= self._resting.get(a, 0.0) and not pool.resting(a, now)]
         for account in ready or chain:  # all resting: try them all again, in order
             try:
                 text, usage = self._backend(account).chat(tag, messages, temperature)
             except RuntimeError as exc:
                 if not EXHAUSTED.search(str(exc)):
                     raise
+                until = pool.reset_at(str(exc)) or time.time() + self.REST_S
                 with self._lock:
-                    fresh = now - self._resting.get(account, 0.0) > self.REST_S
-                    self._resting[account] = time.time()
-                pool.mark(account, "ran_out")  # every other run rests it too
+                    fresh = now >= self._resting.get(account, 0.0)
+                    self._resting[account] = until
+                pool.mark(account, "ran_out", pool.reset_at(str(exc)))  # every other run rests it too
                 if fresh and self.on_switch:
-                    self.on_switch(f"{self.label(account)} is out of usage or credit; resting it "
-                                   f"{self.REST_S // 60} min and moving on ({str(exc)[-160:]})")
+                    self.on_switch(f"{self.label(account)} is out of usage or credit; resting it until "
+                                   f"{time.strftime('%H:%M', time.localtime(until))} and moving on ({str(exc)[-160:]})")
                 last = exc
                 continue
             usage["account"], usage["billed"] = self.label(account), not self.is_subscription(account)
