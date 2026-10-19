@@ -1070,10 +1070,13 @@ def expand_target(name: str, symbols: set[str], receptors_of: Callable[[str], li
     receptors' subunits, since many drugs block the receptor rather than the ligand. Order: named, members, receptors.
     No ranking among receptors: the resource has none, so all are looked up (cached) and the pharmacologist judges."""
     g = name.upper()
-    out = [{"gene": g, "via": "named"}] if g in symbols or not symbols else []
-    if not out:
+    if symbols and g not in symbols and "-" in g:  # "IFN-G" is IFNG; "IL-18R" is the IL18R family
+        g = g.replace("-", "")
+    out = [{"gene": g, "via": "named", "known": True}] if g in symbols or not symbols else []
+    if not out:  # "known": a gene symbol here, so an Open Targets name for it is the same gene under another name
         fam = sorted(x for x in symbols if re.fullmatch(re.escape(g) + r"[A-Z0-9]{1,3}", x))[:members]
-        out = [{"gene": x, "via": f"member of {g}"} for x in fam] or [{"gene": g, "via": "named"}]
+        out = ([{"gene": x, "via": f"member of {g}", "known": True} for x in fam]
+               or [{"gene": g, "via": "named", "known": False}])
     seen = {x["gene"] for x in out}
     of: dict[str, list[str]] = {}  # receptor subunit -> every ligand here it binds, so the label names them all
     for lig in [x["gene"] for x in out]:
@@ -1084,7 +1087,7 @@ def expand_target(name: str, symbols: set[str], receptors_of: Callable[[str], li
         for r in list(dict.fromkeys(u.upper() for r in recs for u in str(r).split("_") if u))[:per_ligand]:
             if r not in seen:
                 of.setdefault(r, []).append(lig)
-    return out + [{"gene": r, "via": "receptor of " + ", ".join(ligs)} for r, ligs in of.items()]
+    return out + [{"gene": r, "via": "receptor of " + ", ".join(ligs), "known": True} for r, ligs in of.items()]
 
 
 def considered_drugs(targets: list[dict], lookups: dict[str, dict], hyps: list[dict], objs: list,
@@ -1104,7 +1107,10 @@ def considered_drugs(targets: list[dict], lookups: dict[str, dict], hyps: list[d
                 rows.append({**lk, "matched_as": "", "drugs": [], "note": "lookup failed or not run"})
                 continue
             sym = str(d.get("symbol") or lk["gene"]).upper()
-            note = (f"Open Targets matched {lk['gene']} as {sym}" if sym != lk["gene"].upper() else "")
+            renamed = sym != lk["gene"].upper()
+            wrong = renamed and not lk.get("known", True)  # not a gene symbol: Open Targets' top hit may be another gene
+            note = (f"Open Targets matched {lk['gene']} as {sym}: check it is the gene meant" if wrong
+                    else f"listed in Open Targets as {sym}" if renamed else "")
             drugs = []
             for x in d.get("drugs") or []:
                 n = str(x.get("drug", "")).upper()
@@ -1113,14 +1119,20 @@ def considered_drugs(targets: list[dict], lookups: dict[str, dict], hyps: list[d
                 drugs.append({"drug": x.get("drug"), "stage": x.get("stage", ""),
                               "actions": sorted({a["action"] for a in x.get("actions") or [] if a.get("action")}),
                               "status": st, "why": why.get(n, "")})
-            rows.append({**lk, "matched_as": sym if note else "", "drugs": drugs,
+            rows.append({**lk, "matched_as": sym if wrong else "", "drugs": drugs,
                          "note": note + ("; no drugs" if note and not drugs else "") if note else
                          ("" if drugs else "no drugs or clinical candidates")})
         out.append({"target": t["gene"], "circuits": t["circuits"], "lookups": rows})
     return out
 
 
-NUM = re.compile(r"(?<![\w.])\d+(?:\.\d+)?(?![\w])")
+NUM = re.compile(r"(?<![\w.])(?<![A-Za-z]-)\d+(?:\.\d+)?(?![\w])")  # "IL-20" is a name, not a number
+STEP_REF = re.compile(r"\b(?:steps?|circuits?)\s+\d+(?:\s*(?:,|and|or|to|-|–)\s*\d+)*", re.I)
+
+
+def _numbers(text: str) -> list[str]:
+    """The numbers a card states as data: not step or circuit references, not molecule names."""
+    return NUM.findall(STEP_REF.sub(" ", text or ""))
 CARD_TEXT = ("sender", "signal", "receiver", "receptor", "effect", "follows", "leads_to", "must_hold")
 
 
@@ -1147,17 +1159,27 @@ def check_cards(cards: list[dict], edges: list[dict], results: dict) -> tuple[li
         card = {"step": k}
         for f in CARD_TEXT:
             v = str(c.get(f) or "").strip()
-            bad = [n for n in NUM.findall(v) if n not in hay]
+            bad = [n for n in _numbers(v) if n not in hay]
             if bad:
                 dropped.append({"step": k, "field": f, "why": f"numbers not in the cited results: {', '.join(bad[:4])}"})
                 v = ""
             card[f] = v
         st = str(seen.get("text") or "").strip()
-        bad = [n for n in NUM.findall(st) if n not in " ".join(str(results[i].summary) for i in sids)]
-        if st and (not sids or bad):
-            dropped.append({"step": k, "field": "seen_here",
-                            "why": "no cited result" if not sids else f"numbers not in the cited results: {', '.join(bad[:4])}"})
-            st, sids = "", []
+        if st and not sids:
+            dropped.append({"step": k, "field": "seen_here", "why": "no cited result"})
+            st = ""
+        elif st:  # a sentence with a number the cited results do not hold goes; the rest stays
+            src, kept = " ".join(str(results[i].summary) for i in sids), []
+            for sent in re.split(r"(?<=[.;])\s+(?=[A-Z])", st):
+                bad = [n for n in _numbers(sent) if n not in src]
+                if bad:
+                    dropped.append({"step": k, "field": "seen_here",
+                                    "why": f"numbers not in the cited results: {', '.join(bad[:4])}", "sentence": sent[:300]})
+                else:
+                    kept.append(sent)
+            st = " ".join(kept)
+        if not st:
+            sids = []
         card["seen_here"] = {"text": st, "ids": sids}
         lit = []
         for x in c.get("literature") or []:

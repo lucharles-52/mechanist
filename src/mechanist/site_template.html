@@ -132,16 +132,16 @@ p.secsub{font-size:15.5px;color:var(--ink-2);max-width:70ch;margin:0 0 16px}
 @media (max-width:640px){.frec .tr{grid-template-columns:40px minmax(0,1fr)}.frec .tr .tx{grid-column:1/-1}}
 .more{font:600 13px var(--label);background:none;border:1px solid var(--hair);padding:5px 12px;border-radius:3px;cursor:pointer;color:var(--ink)}
 .mcard{margin:10px 0 14px;border-top:1px solid var(--ink);padding-top:10px}
-.mflow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;margin-bottom:10px}
-.mflow>div{background:var(--page);padding:7px 9px;font-size:13.5px;line-height:1.35;position:relative}
-.mflow>div:not(:last-child)::after{content:"→";position:absolute;right:-7px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:12px;z-index:1}
+.mflow{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:2px;margin-bottom:10px}
+.mflow>div{background:var(--page);padding:7px 9px;font-size:13.5px;line-height:1.35;overflow-wrap:anywhere}
 .cl{display:block;font:600 11px var(--label);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
 .mcard .na{color:var(--muted)}.meff{margin:0 0 8px;font-size:14.5px;line-height:1.5}
 .mlink{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13.5px;line-height:1.45;margin-bottom:8px}.mlink p{margin:0}
 .mev{display:grid;gap:8px;font-size:14px;line-height:1.45}.mev>div{border-top:1px solid var(--hair);padding-top:6px}
 .mev q{display:block;margin:4px 0;padding-left:10px;border-left:2px solid var(--hair);font-style:italic;quotes:none}
 .mev small{display:block;color:var(--muted);font-size:12.5px}.mev p{margin:0 0 6px}
-@media (max-width:640px){.mflow{grid-template-columns:1fr 1fr}.mlink{grid-template-columns:1fr}}
+.mev .rid{margin-right:5px}
+@media (max-width:640px){.mlink{grid-template-columns:1fr}}
 .consid>details{border-top:1px solid var(--hair)}.consid>details>summary{cursor:pointer;padding:9px 0;font:600 14.5px var(--label)}
 .consid>details>summary small{font:400 12.5px var(--label);color:var(--muted);margin-left:8px}
 .consid .lk{margin:0 0 10px;font-size:14px;line-height:1.45}.consid .lk b{font:600 13px var(--label)}
@@ -553,11 +553,11 @@ function plate(root, c){
     const {ms, exps, drugs} = linksFor(c.rank, s);
     const strips = s.strips.length ? `<div class="strips">${s.strips.map(st => `<figure class="strip"><figcaption>${gene(st.gene)}<span>${esc(st.lin)}</span><button type="button" class="rid" data-rid="${st.rid}">${st.rid}</button></figcaption>${strip(st)}<div class="vd ${st.verdict.startsWith("every") ? "hold" : ""}">${esc(st.verdict)}</div></figure>`).join("")}</div>
       <div class="legend">${GROUPS.map(g => `<span><i class="dotk" style="background:${GCOL[g]}"></i>${esc(g)}</span>`).join("")}<span>% of the lineage's cells expressing, one dot per sample</span></div>`
-      : `<p class="quiet">No per-sample measurement stands behind this step${s.ids.length ? "; it rests on the results below" : ", which rests on reasoning alone"}.</p>`;
+      : s.card ? "" : `<p class="quiet">No per-sample measurement stands behind this step${s.ids.length ? "; it rests on the results below" : ", which rests on reasoning alone"}.</p>`;
     pb.innerHTML = `<div class="pl">B <span>Step ${s.i} of ${c.steps.length}</span></div>
       <div class="ev">${sline(s.status)}${esc(WORD[s.status]||s.status)}${ms.length ? ` · open question ${ms.join(", ")}` : ""}</div>
       <h3 class="sh">${esc(s.source)} → ${esc(s.target)}</h3>${s.via ? `<p class="via">via ${esc(s.via)}</p>` : ""}
-      ${s.card ? cardHTML(s.card, c.steps.length) : ""}${strips}${s.note ? `<p class="found"><b>Team note.</b> ${linkIds(s.note)}</p>` : ""}
+      ${s.card ? cardHTML(s.card, c.steps.length) : ""}${strips}${s.note && !s.card ? `<p class="found"><b>Team note.</b> ${linkIds(s.note)}</p>` : ""}
       ${s.ids.length ? `<div class="ids">${ridBtns(s.ids)}${s.ids.filter(i => !D.results[i]).map(i => `<span class="lab" style="color:var(--muted);font-size:12px">${esc(i)}</span>`).join("")}</div>` : ""}
       <div class="sub2">Experiments that would test it</div>${exps.length ? `<ul class="lst">${exps.slice(0,3).map(x => `<li><span class="n">${esc(x.id)}</span><div><a href="#experiments" data-open="${esc(x.id)}">${esc(x.title)}</a><small>${esc(QWORD[x.question] || x.kind || "")} · ${esc(TIER[x.tier] || x.setting || "")}</small></div></li>`).join("")}</ul>` : `<p class="quiet">No experiment in the plan addresses this step.</p>`}
       <div class="sub2">Drugs that act on it</div>${drugs.length ? `<ul class="lst">${drugs.map(d => `<li><span class="n">#${d.rank}</span><div><a href="#treatments" data-dd="${esc(d.drug)}">${esc(cap(d.drug))}</a> ${gene(d.target)}${d.boxed ? `<span class="warnw">black-box warning</span>` : ""}<small>${esc(d.level)}</small></div></li>`).join("")}</ul>` : `<p class="quiet">No drug in the panel acts on this step.</p>`}`; }

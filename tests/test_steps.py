@@ -494,14 +494,16 @@ def test_a_family_target_is_looked_up_through_its_members_and_their_receptors():
     assert [x["gene"] for x in got] == ["FAMA", "FAMB", "FAMRN", "FAMX1", "RECA", "RECB"]
     assert got[0]["via"] == "member of FAM" and got[4]["via"] == "receptor of FAMA, FAMB, FAMRN"
     assert got[5]["via"] == "receptor of FAMA, FAMB"
-    assert inv.expand_target("OTHER", syms, receptors_of) == [{"gene": "OTHER", "via": "named"}]
-    # an unknown name is still looked up as named (Open Targets may know an alias)
-    assert inv.expand_target("ZZZ", syms, receptors_of) == [{"gene": "ZZZ", "via": "named"}]
+    assert inv.expand_target("OTHER", syms, receptors_of) == [{"gene": "OTHER", "via": "named", "known": True}]
+    assert inv.expand_target("FAM-A", syms, receptors_of)[0] == {"gene": "FAMA", "via": "named", "known": True}
+    assert [x["gene"] for x in inv.expand_target("FAM-X", syms, receptors_of)][:1] == ["FAMX1"]
+    # an unknown name is still looked up as named (Open Targets may know an alias), marked not known
+    assert inv.expand_target("ZZZ", syms, receptors_of) == [{"gene": "ZZZ", "via": "named", "known": False}]
 
 
 def test_considered_drugs_say_what_became_of_every_drug_found():
     from mechanist.records import Objection
-    targets = [{"gene": "FAM", "circuits": [1], "lookups": [{"gene": "FAMA", "via": "member of FAM"},
+    targets = [{"gene": "FAM", "circuits": [1], "lookups": [{"gene": "FAMA", "via": "member of FAM", "known": False},
                                                              {"gene": "RECA", "via": "receptor of FAMA"},
                                                              {"gene": "FAMZ", "via": "member of FAM"}]}]
     lk = {"FAMA": {"gene": "FAMA", "symbol": "FAMRN", "drugs": []},
@@ -514,7 +516,10 @@ def test_considered_drugs_say_what_became_of_every_drug_found():
                       text="DRUG3 on FAMA is not in any drug lookup that ran; dropped.")]
     out = inv.considered_drugs(targets, lk, hyps, objs, [{"drug": "drug2", "why": "a better drug on the same step"}])
     rows = {r["gene"]: r for r in out[0]["lookups"]}
-    assert rows["FAMA"]["matched_as"] == "FAMRN" and "matched FAMA as FAMRN; no drugs" in rows["FAMA"]["note"]
+    assert rows["FAMA"]["matched_as"] == "FAMRN" and "matched FAMA as FAMRN: check it is the gene meant; no drugs" in rows["FAMA"]["note"]
+    lk["RECA"]["symbol"] = "RECNEW"  # a known symbol under another name: noted, not flagged
+    again = {r["gene"]: r for r in inv.considered_drugs(targets, lk, hyps, objs, [])[0]["lookups"]}
+    assert again["RECA"]["matched_as"] == "" and again["RECA"]["note"] == "listed in Open Targets as RECNEW"
     st = {d["drug"]: (d["status"], d["why"]) for d in rows["RECA"]["drugs"]}
     assert st == {"DRUG1": ("listed", ""), "DRUG2": ("passed over", "a better drug on the same step"),
                   "DRUG3": ("dropped", "")}
@@ -530,8 +535,9 @@ def test_mechanism_cards_keep_only_numbers_and_quotes_their_sources_hold():
                             data={"papers": [{"pmid": "111"}]})}
     edges = [{"source": "CellA", "target": "CellB", "via": "SIG1", "ids": ["R1", "R2"]}, {"source": "CellB", "target": "X"}]
     cards = [{"step": 1, "sender": "CellA", "signal": "SIG1", "receiver": "CellB", "receptor": "REC1",
-              "effect": "Makes CellB divide in 90% of cases.", "follows": "", "leads_to": "Step 2 uses the dividing cells.",
-              "seen_here": {"text": "42.5% of case CellA vs 3.1% of reference", "ids": ["R1"]},
+              "effect": "Makes CellB divide in 90% of cases.", "follows": "", "leads_to": "Steps 2 and 3 use the dividing cells.",
+              "signal": "IL-20 and SIG1",
+              "seen_here": {"text": "42.5% of case CellA vs 3.1% of reference. That is 13.7 times more.", "ids": ["R1"]},
               "literature": [{"claim": "drives proliferation", "quote": "SIG1 drives CellB proliferation in lesional skin.",
                               "pmid": "111", "id": "R2", "context": "skin"},
                              {"claim": "made up", "quote": "SIG1 cures everything.", "pmid": "111", "id": "R2"},
@@ -545,8 +551,10 @@ def test_mechanism_cards_keep_only_numbers_and_quotes_their_sources_hold():
     c1 = out[0]
     assert c1["effect"] == "" and c1["seen_here"]["text"].startswith("42.5%") and c1["seen_here"]["ids"] == ["R1"]
     assert [x["pmid"] for x in c1["literature"]] == ["111"] and c1["receptor"] == "REC1"
+    assert c1["leads_to"].startswith("Steps 2 and 3") and c1["signal"] == "IL-20 and SIG1"
     assert out[1]["seen_here"] == {"text": "", "ids": []}
     why = sorted((d["step"], d["field"], d["why"]) for d in dropped)
     assert (1, "effect", "numbers not in the cited results: 90") in why
     assert (1, "literature", "quote not in that result") in why and (1, "literature", "PMID not in that result") in why
-    assert (2, "seen_here", "no cited result") in why
+    assert (2, "seen_here", "no cited result") in why and (1, "seen_here", "numbers not in the cited results: 13.7") in why
+    assert c1["seen_here"]["text"] == "42.5% of case CellA vs 3.1% of reference."
