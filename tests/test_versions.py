@@ -83,6 +83,11 @@ def test_the_diff_says_what_moved():
     assert {(m["title"], m["from"], m["to"]) for m in d["moved"]} == {("A", 1, 2), ("B", 2, 1)}
     assert d["grades"] == [{"rank": 2, "step": 1, "edge": "c1 → c2", "from": "likely", "to": "refuted", "ids": ["X1"]}]
     assert d["new_experiments"] == ["E2"]
+    reworded = {"circuits": {"circuits": [{"rank": 1, "title": "A", "edges": [
+        {"source": "c1 cells", "target": "SIG1 protein output", "status": "bench", "ids": ["X1"]}]}]}}
+    base = {"circuits": {"circuits": [{"rank": 1, "title": "A", "edges": [
+        {"source": "c1 cells", "target": "SIG1 transcript output", "status": "observed"}]}]}}
+    assert versions.diff(base, reworded)["grades"][0]["from"] == "observed"  # a reworded step is not a new one
     assert d["drugs"] == {"added": ["D3"], "dropped": ["D1"], "moved": [{"drug": "D2", "from": 2, "to": 1}]}
 
 

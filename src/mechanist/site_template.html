@@ -741,7 +741,7 @@ drugChart();
                  ...C.diff.drugs.added.map(d => `<li>${esc(cap(d))}<small>new</small></li>`), ...C.diff.drugs.dropped.map(d => `<li>${esc(cap(d))}<small>no longer listed</small></li>`)].join("");
   const col = (h, body) => body ? `<div><h3>${h}</h3><ul>${body}</ul></div>` : "";
   $("#changed").innerHTML = `<h2>What changed in version ${V.version}</h2><p class="when">${esc(V.label)}${V.date ? ", " + esc(V.date) : ""}${V.by ? ", from " + esc(V.by) : ""}; built on version ${esc(String(C.parent_version))}, which stays as it was.</p>
-    ${C.text ? `<p class="what">${esc(C.text)}</p>` : ""}<div class="cg">${col("New input", items)}${col("Steps regraded", grades)}${col("Circuits", circ)}${col("Drugs", drugs)}</div>`;
+    ${C.text ? `<p class="what">${esc(C.text).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")}</p>` : ""}<div class="cg">${col("New input", items)}${col("Steps regraded", grades)}${col("Circuits", circ)}${col("Drugs", drugs)}</div>`;
   $("#changed").hidden = false;
   const done = D.done || []; if (done.length) $("#xdone").innerHTML = `<h2 class="sec">Done at the bench</h2><ul class="lst">${done.map(x => `<li><span class="n">${esc(x.experiment || x.id)}</span><div>${esc(x.title || (D.experiments.find(e => e.id === x.experiment) || {}).title || "")}<small><b>${esc(x.outcome)}</b>: ${esc(x.found)}</small></div></li>`).join("")}</ul>`;
 })();

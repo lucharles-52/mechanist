@@ -184,10 +184,23 @@ def diff(old: dict, new: dict) -> dict:
                  "dropped": [{"rank": c["rank"], "title": t} for t, c in oc.items() if t not in nc],
                  "moved": [{"title": t, "from": oc[t]["rank"], "to": c["rank"]} for t, c in nc.items()
                            if t in oc and oc[t]["rank"] != c["rank"]], "grades": []}
+    def words(e):
+        return set(re.findall(r"[a-z0-9]{3,}", f"{e.get('source', '')} {e.get('target', '')} {e.get('via', '')}".lower()))
+
+    def match(e, olds):
+        """The parent's step this one continues: the same ends, else the one sharing most of its words (at least
+        half), since the refiner may reword a step it regrades."""
+        for o in olds:
+            if (o.get("source"), o.get("target")) == (e.get("source"), e.get("target")):
+                return o
+        w = words(e)
+        best = max(olds, key=lambda o: len(w & words(o)) / max(1, len(w | words(o))), default=None)
+        return best if best is not None and len(w & words(best)) / max(1, len(w | words(best))) >= 0.5 else None
     for t, c in nc.items():
-        before = {(e.get("source"), e.get("target")): e.get("status") for e in (oc.get(t) or {}).get("edges") or []}
+        olds = [o for o in (oc.get(t) or {}).get("edges") or [] if isinstance(o, dict)]
         for i, e in enumerate(c.get("edges") or [], 1):
-            was = before.get((e.get("source"), e.get("target")))
+            o = match(e, olds)
+            was = o.get("status") if o else None
             if was != e.get("status"):
                 out["grades"].append({"rank": c["rank"], "step": i, "edge": f"{e.get('source')} → {e.get('target')}",
                                       "from": was or "new step", "to": e.get("status"),
