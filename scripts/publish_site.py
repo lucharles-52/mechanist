@@ -25,7 +25,7 @@ from pathlib import Path
 
 MECH = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(MECH / "src"))
-from mechanist import mark  # noqa: E402
+from mechanist import mark, versions  # noqa: E402
 
 PORTAL = MECH.parent / "Interactive" / "output"
 BOX = "box:CL Analysis Portal/projects"
@@ -84,13 +84,27 @@ def publish(run: Path, upload: bool = True) -> None:
     backup = MECH / "runs" / "published" / "_previous" / f"{pid}_{time.strftime('%Y%m%d_%H%M%S')}"
     pub = MECH / "runs" / "published" / pid
     keep(pub, backup)
-    shutil.rmtree(pub, ignore_errors=True)
-    pub.mkdir(parents=True)
-    shutil.copy2(site, pub / "index.html")
+    # every version of the run in v<N>/, the newest also at the top (the portal's tab opens it). Another run of the
+    # study (not a version of this one) starts the folder afresh; the old one stays in the backup.
+    n, root = versions.number(run), versions.root_of(run).name
+    man = pub / "versions.json"
+    old = json.loads(man.read_text()) if man.exists() else {}
+    if old.get("root") != root:
+        shutil.rmtree(pub, ignore_errors=True)
+        old = {}
+    (pub / f"v{n}").mkdir(parents=True, exist_ok=True)
     analyses = (run / "site" / "analyses.html").exists()  # scripts/build_analyses.py, when it has been run
-    if analyses:
-        shutil.copy2(run / "site" / "analyses.html", pub / "analyses.html")
-    print(f"published {run.name} to {pub}")
+    for f in ("index.html", "analyses.html") if analyses else ("index.html",):
+        shutil.copy2(run / "site" / f, pub / f"v{n}" / f)
+    fam = [v for v in versions.family(run) if (pub / f"v{v['version']}" / "index.html").exists()]
+    newest = max(v["version"] for v in fam)
+    for f in ("index.html", "analyses.html"):
+        src = pub / f"v{newest}" / f
+        if src.exists():
+            shutil.copy2(src, pub / f)
+    man.write_text(json.dumps({"root": root, "newest": newest, "versions": fam}, indent=1))
+    analyses = (pub / "analyses.html").exists()
+    print(f"published {run.name} (version {n}; newest {newest}) to {pub}")
 
     folders = sorted(PORTAL.glob(f"*__{pid}"))
     if len(folders) != 1:
@@ -109,8 +123,9 @@ def publish(run: Path, upload: bool = True) -> None:
     if not upload:
         return
     dest = f"{BOX}/{pid}/report"
-    for f in ("index.html", "data/catalog.js", "mechanist/index.html") + (("mechanist/analyses.html",) if analyses else ()):
+    for f in ("index.html", "data/catalog.js"):
         subprocess.run([RCLONE, "copyto", str(report / f), f"{dest}/{f}"], check=True)
+    subprocess.run([RCLONE, "copy", str(report / "mechanist"), f"{dest}/mechanist"], check=True)  # every version
     print(f"uploaded to {dest}")
 
 

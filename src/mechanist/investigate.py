@@ -746,6 +746,41 @@ def check_circuits(circuits, known: set[str], lit_ids: set[str]) -> list[Objecti
     return out
 
 
+def check_bench(circuits, items: list[dict], parent: list[dict] | None = None) -> list[Objection]:
+    """A version's grades: 'bench' needs a submitted result whose outcome fits (positive or mixed), 'refuted' one that
+    argues against (negative or mixed); otherwise the step falls back to 'likely'. A circuit that keeps or improves its
+    rank with a refuted step must say why in its summary, or the PI hears of it."""
+    outcome = {x["id"]: x.get("outcome") for x in items if x["kind"] == "result"}
+    fits = {"bench": ("positive", "mixed"), "refuted": ("negative", "mixed")}
+    was = {c.get("title"): c.get("rank") for c in parent or []}
+    out = []
+    for c in circuits:
+        for e in c.edges:
+            if e.status in fits and not any(outcome.get(i) in fits[e.status] for i in e.ids):
+                out.append(Objection(target=f"circuit {c.rank}", kind="unsupported_step", source="verifier",
+                                     text=f"Edge {e.source} -> {e.target} was graded {e.status} without a submitted "
+                                          f"result that fits; relabelled likely."))
+                e.status = "likely"
+        if any(e.status == "refuted" for e in c.edges) and c.rank <= was.get(c.title, 0) \
+                and "refut" not in c.summary.lower():
+            out.append(Objection(target=f"circuit {c.rank}", kind="missing_evidence", source="verifier",
+                                 text=f"Circuit {c.rank} ({c.title[:60]}) has a refuted step but keeps its rank; "
+                                      f"lower it, or say in its summary why the refutation does not break it."))
+    return out
+
+
+def check_items(accounting: list[dict], items: list[dict]) -> list[Objection]:
+    """Every submitted item must be accounted for: which steps it bears on and how, with a reason."""
+    got = {str(a.get("item", "")).upper().strip(): a for a in accounting if isinstance(a, dict)}
+    out = [Objection(target="refine", kind="missing_evidence", source="verifier",
+                     text=f"{x['id']} ({x['kind']}) is not accounted for: say which steps it bears on and how.")
+           for x in items if x["id"] not in got]
+    out += [Objection(target="refine", kind="missing_evidence", source="verifier",
+                      text=f"{a.get('item')}: give the reason for '{a.get('verdict')}'.")
+            for a in got.values() if not str(a.get("reason") or "").strip()]
+    return out
+
+
 def check_accounting(accounting: list[dict], link_ids: list[str], known: set[str]) -> list[Objection]:
     """Every ledger link must be accounted for by the circuits: used (in a circuit), set aside (with a reason) or
     contradicted (with a data id that exists). A link left out, or a verdict without what it needs, is an objection."""

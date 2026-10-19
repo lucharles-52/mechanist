@@ -29,6 +29,7 @@ import yaml
 from pydantic import BaseModel
 
 from mechanist import agents, cellfig, report
+from mechanist import versions
 from mechanist import findings as fnd
 from mechanist import investigate as inv
 from mechanist.adapters import p033, skinpipe
@@ -1404,7 +1405,7 @@ class Runner:
              "loops": [str(x) for x in c.get("loops") or []], "unused": [str(x) for x in c.get("unused") or []],
              "support": str(c.get("support") or "")}
         for e in c["edges"]:
-            if e.get("status") not in ("observed", "likely", "analogy", "speculative"):
+            if e.get("status") not in ("bench", "refuted", "observed", "likely", "analogy", "speculative"):
                 e["status"] = "speculative"
             e["ids"] = [str(x) for x in e.get("ids") or []]
         try:
@@ -1557,12 +1558,28 @@ class Runner:
     def _prior_results(self, ctx) -> list[ToolResult]:
         out = []
         for name, key in (("dossier", "results"), ("check", "results"), ("chase", "results"), ("linkage", "results"),
-                          ("revise", "final_results"), ("circuits", "results"), ("experiment", "results")):
+                          ("revise", "final_results"), ("circuits", "results"), ("refine", "results"),
+                          ("experiment", "results")):
             out += [ToolResult.model_validate(r) for r in (ctx.get(name) or {}).get(key, []) or []]
         return out
 
+    def _bench_text(self, ctx) -> str:
+        """In a version (docs/VERSIONS.md): what came back from the bench and the scientists, and how it was read."""
+        rf = ctx.get("refine")
+        if not rf:
+            return ""
+        done = sorted({x["experiment"] for x in rf["items"] if x["kind"] == "result" and x.get("experiment")})
+        return ("\n\nNEW INPUT SINCE THE LAST VERSION (X items; results from the bench are the strongest evidence "
+                "there is, notes are not data):\n" + versions.items_text(rf["items"])
+                + "\n\nHow the team read it:\n" + "\n".join(f"- {a.get('item')}: {a.get('verdict')} "
+                f"({'; '.join(a.get('bears_on') or [])}): {a.get('reason', '')}" for a in rf.get("accounting") or [])
+                + f"\nWhat changed: {rf.get('changes', '')}"
+                + (f"\nAlready done at the bench: {', '.join(done)}. Do not propose them again; build on what they "
+                   f"found." if done else ""))
+
     def _s_experiment(self, ctx):
         _ds, fs, context = self._findings(ctx, self.cfg.investigate_digest)
+        context += self._bench_text(ctx)
         phen = self.cfg.disease_phenotype or "(not given)"
 
         def fn():
@@ -1636,7 +1653,8 @@ class Runner:
                 new, st["seen"] = len(now - st["seen"]), st["seen"] | now
                 return new
             reviews = self._gate(context, "8. Experiments", material, act, "experiment", progress=progress)
-            return {"experiments": st["experiments"], "programmes": st["programmes"],
+            done = [x for x in (ctx.get("refine") or {}).get("items") or [] if x["kind"] == "result"]
+            return {"experiments": st["experiments"], "programmes": st["programmes"], "done": done,
                     "not_testable": st["not_testable"], "uncovered": st["uncovered"],
                     "molecules": molecules, "unconfirmed": st["unconfirmed"], "missing_links": ms,
                     "objections": st["objections"], "results": results, "steps": st["steps"], "reviews": reviews}
@@ -1667,8 +1685,73 @@ class Runner:
             return {"circuits": out, "dropped": dropped}
         return self.stage("cards", ["circuits"], fn)
 
+    def _s_refine(self, ctx):
+        """A version's first stage (docs/VERSIONS.md): the new input (ctx["inputs"], X items) read against the circuits
+        and their experiment plan; steps regraded bench / refuted, circuits re-ranked; the PI reviews like any stage.
+        Returns the refined circuits beside the accounting; the version's circuits.json is written from them."""
+        _ds, fs, context = self._findings(ctx, self.cfg.investigate_digest)
+        phen = self.cfg.disease_phenotype or "(not given)"
+        ver = ctx["inputs"]
+
+        def fn():
+            parent = (ctx.get("circuits") or {}).get("circuits") or []
+            plan = "\n".join(
+                f"- {e.get('id')}: {e.get('title', '')}\n  shows: {str(e.get('shows', ''))[:500]}\n  refutes if: "
+                f"{str(e.get('refutes_if', ''))[:400]}\n  predictions: "
+                + "; ".join(f"circuit {x.get('circuit')} {x.get('outcome')}" for x in e.get("predictions") or [])
+                for e in (ctx.get("experiment") or {}).get("experiments") or []) or "(no plan)"
+            tb = self.toolbox(fs)
+            prior = self._prior_results(ctx)
+            start = max([int(r.id[1:]) for r in prior if r.id[1:].isdigit()] + [0]) + 1
+            results: list[ToolResult] = []
+            execute, catalog = self._restricted(tb, CIRCUIT_TOOLS, results, start)
+            xids = {x["id"] for x in ver["items"]}
+            st: dict = {"circuits": [], "ranking": "", "accounting": [], "changes": "", "objections": [], "steps": []}
+
+            def draft(previous: str, tag: str):
+                user = agents.REFINE_USER.format(context=context, phenotype=phen, version=ver.get("parent_version", 1),
+                                                 circuits=json.dumps(parent, indent=1)[:24000], plan=plan,
+                                                 items=versions.items_text(ver["items"]), catalog=catalog,
+                                                 previous=previous)
+                ans, steps = agents.run_thread(self.llm, tag, agents.REFINE_SYSTEM.format(steps=self.cfg.circuit_steps),
+                                               user, execute, self.cfg.circuit_steps, self.cfg.thread_result_cap)
+                st["steps"] += steps
+                if ans is None:
+                    return
+                cs = [c for c in (self._circuit(c, i) for i, c in enumerate(ans.get("circuits") or [], 1)) if c]
+                known = inv.known_ids({f.id for f in fs}, prior + results) | xids
+                objs = inv.check_circuits([c for c in cs], known, self._lit_ok(prior) | self._lit_ok(results))
+                objs += inv.check_bench(cs, ver["items"], parent)
+                st["accounting"] = [x for x in ans.get("accounting") or [] if isinstance(x, dict)]
+                objs += inv.check_items(st["accounting"], ver["items"])
+                st.update(circuits=sorted(cs, key=lambda c: c.rank), ranking=str(ans.get("ranking") or ""),
+                          changes=str(ans.get("changes") or ""), objections=objs)
+
+            draft("", "refine:r1")
+
+            def material():
+                return ("New input:\n" + versions.items_text(ver["items"]) + "\n\nHow each item was read:\n"
+                        + json.dumps(st["accounting"], indent=1)[:8000] + f"\n\nWhat changed: {st['changes']}"
+                        + "\n\nRefined circuits (JSON):\n" + json.dumps([c.model_dump() for c in st["circuits"]],
+                                                                         indent=1)[:20000]
+                        + "\n\nAutomatic checks:\n" + ("\n".join(f"- [{o.kind}] {o.text}" for o in st["objections"])
+                                                         or "(none)"))
+
+            def act(demands, n):
+                draft("Your previous answer (JSON):\n" + json.dumps({"accounting": st["accounting"],
+                      "changes": st["changes"], "circuits": [c.model_dump() for c in st["circuits"]]})[:16000]
+                      + "\n\nThe PI's demands (address each, then give the full revised answer):\n"
+                      + "\n".join(f"- {d['text']}" for d in demands), f"refine:r{n + 1}")
+            reviews = self._gate(context, "R. Refining after new input", material, act, "refine",
+                                 cap=self.cfg.circuit_review_cap)
+            return {"circuits": [c.model_dump() for c in st["circuits"]], "ranking": st["ranking"],
+                    "accounting": st["accounting"], "changes": st["changes"], "items": ver["items"],
+                    "objections": st["objections"], "steps": st["steps"], "reviews": reviews, "results": results}
+        return self.stage("refine", ["circuits"], fn)
+
     def _s_therapy(self, ctx):
         _ds, fs, context = self._findings(ctx, self.cfg.investigate_digest)
+        context += self._bench_text(ctx)
         phen = self.cfg.disease_phenotype or "(not given)"
 
         def fn():

@@ -26,3 +26,4 @@ kb/lit_cache
 
 # local run logs
 /*.log
+runs/_test_inputs/

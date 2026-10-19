@@ -55,9 +55,11 @@ MARKER_RE = re.compile(r"CD\d+[A-Z]?|HLA-?\w*|MHC-?\w*")  # cell markers name th
 NOT_GENE = {"PG", "DE", "UP", "DOWN", "AND", "OR", "NOT", "TLS", "IBD", "DAMP", "DAMPS", "RNA", "DNA", "II", "NB", "MHC",
             "HLA", "JAK", "STAT", "ECM", "ROS", "NET", "NETS", "AS", "IS", "OF", "THE", "FC", "CD", "NK", "DC", "T",
             "B", "PMID", "SSP", "UMAP", "QC"}
-STRENGTH = {"observed": 3, "analogy": 2, "likely": 1, "speculative": 0}
-STYLE = {"observed": ("var(--accent)", 3.2, ""), "likely": ("var(--ink-2)", 1.8, ""),
-         "analogy": ("var(--ink-2)", 1.8, "2 4"), "speculative": ("var(--muted)", 1.6, "6 4")}
+STRENGTH = {"bench": 4, "observed": 3, "analogy": 2, "likely": 1, "speculative": 0, "refuted": -1}
+# bench / refuted: a version's submitted result shows the step or argues against it (docs/VERSIONS.md)
+STYLE = {"bench": ("var(--ink)", 4.4, ""), "observed": ("var(--accent)", 3.2, ""), "likely": ("var(--ink-2)", 1.8, ""),
+         "analogy": ("var(--ink-2)", 1.8, "2 4"), "speculative": ("var(--muted)", 1.6, "6 4"),
+         "refuted": ("var(--sel)", 1.6, "1 3")}
 
 
 def esc(x) -> str:

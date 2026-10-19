@@ -142,6 +142,17 @@ p.secsub{font-size:15.5px;color:var(--ink-2);max-width:70ch;margin:0 0 16px}
 .mev small{display:block;color:var(--muted);font-size:12.5px}.mev p{margin:0 0 6px}
 .mev .rid{margin-right:5px}
 @media (max-width:640px){.mlink{grid-template-columns:1fr}}
+.vsw{display:inline-flex;gap:6px;align-items:center;font:500 13px var(--label);color:var(--muted)}
+.vsw select{font:500 13px var(--label);color:var(--ink);background:var(--plate);border:1px solid var(--rule);padding:3px 6px;max-width:16rem}
+.changed{border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);margin:30px 0 26px;padding:14px 0 16px}
+.changed h2{font:600 22px/1.25 var(--serif);margin:0 0 4px}.changed .when{font:400 13px var(--label);color:var(--muted);margin:0 0 10px}
+.changed .what{font-size:16.5px;line-height:1.55;max-width:70ch;margin:0 0 12px}
+.changed .cg{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px 28px}
+.changed .cg h3{font:600 12px var(--label);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:0 0 4px}
+.changed ul{list-style:none;margin:0;padding:0}.changed li{padding:5px 0;border-top:1px solid var(--hair);font-size:14.5px;line-height:1.4}
+.changed li small{display:block;font:400 12.5px var(--label);color:var(--muted)}
+.changed .xi b{font:600 12.5px var(--label);margin-right:6px}.changed .oc{font:600 11.5px var(--label);letter-spacing:.04em;text-transform:uppercase;margin-left:6px}
+.changed .oc.positive{color:var(--ink)}.changed .oc.negative{color:var(--sel)}.changed .oc.mixed,.changed .oc.inconclusive{color:var(--muted)}
 .consid>details{border-top:1px solid var(--hair)}.consid>details>summary{cursor:pointer;padding:9px 0;font:600 14.5px var(--label)}
 .consid>details>summary small{font:400 12.5px var(--label);color:var(--muted);margin-left:8px}
 .consid .lk{margin:0 0 10px;font-size:14px;line-height:1.45}.consid .lk b{font:600 13px var(--label)}
@@ -366,6 +377,7 @@ pre.sum{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,C
     <a class="mast" href="#overview"><!--MARK-->Mechanist</a>
     <span class="rh"><!--RUNNINGHEAD--></span>
     <!--BACK-->
+    <label class="vsw" id="vsw" hidden><span>Version</span><select id="vsel" aria-label="Version of this analysis"></select></label>
     <nav class="toc" aria-label="Sections">
       <a href="#overview" data-nav="overview">Overview<span class="for">for everyone</span></a>
       <a href="#experiments" data-nav="experiments">Experiments<span class="for">for the bench</span></a>
@@ -384,6 +396,7 @@ pre.sum{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,C
 <div class="wrap" data-view="overview">
   <div class="article">
     <article class="main">
+      <section class="changed" id="changed" hidden></section>
       <h1 id="q"></h1>
       <p class="stand" id="ans"></p>
       <p class="byline" id="byline"></p>
@@ -416,6 +429,7 @@ pre.sum{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,C
       <div class="tbw"><table class="matrix" id="matrix"></table></div>
       <div class="path" id="paths"></div>
       <div id="xnt"></div>
+      <div id="xdone"></div>
     </article>
     <aside class="margin"><div id="xcorr" class="corr"></div></aside>
   </div>
@@ -469,7 +483,7 @@ const D = /*DATA*/;
 const $ = s => document.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const cap = s => s ? s.charAt(0) + s.slice(1).toLowerCase() : "";
-const WORD = {observed:"Seen in this data", likely:"Inferred, not tested", speculative:"Speculative", analogy:"Published elsewhere"};
+const WORD = {bench:"Shown at the bench", observed:"Seen in this data", likely:"Inferred, not tested", speculative:"Speculative", analogy:"Published elsewhere", refuted:"Refuted at the bench"};
 const GROUPS = Object.keys(D.groups);
 const GCOL = Object.fromEntries(GROUPS.map((g, i) => [g, `var(--g${Math.min(i, 3)})`]));
 const QWORD = {presence:"Is it there?", rule_out:"Could it be ruled out fast?", mechanism:"Does the mechanism work?", in_vivo:"Does it hold in a living system?"};
@@ -478,7 +492,7 @@ const TIER = {in_data:"this dataset", archived_tissue:"archived tissue", spatial
 const TORDER = ["in_data","archived_tissue","spatial","ex_vivo","in_vitro","in_vivo","cohort"];
 const gene = g => `<i class="g" data-gs="${esc(g)}" tabindex="0">${esc(g)}</i>`;
 const line = (w, da, col = "var(--ink)") => `<svg width="30" height="8" aria-hidden="true"><line x1="1" y1="4" x2="29" y2="4" stroke="${col}" stroke-width="${w}" ${da?`stroke-dasharray="${da}"`:""}/></svg>`;
-const sline = s => line(s==="observed"?3.2:1.6, s==="speculative"?"6 4":s==="analogy"?"2 4":"");
+const sline = s => s === "bench" ? line(4.4) : s === "refuted" ? line(1.6, "1 3", "var(--sel)") : line(s==="observed"?3.2:1.6, s==="speculative"?"6 4":s==="analogy"?"2 4":"");
 const evGlyph = s => `<svg width="22" height="8" aria-hidden="true"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--ink)" stroke-width="${s==="observed"?3:1.5}" ${s==="speculative"?'stroke-dasharray="5 3"':s==="analogy"?'stroke-dasharray="2 3"':""}/></svg>`;
 const C = Object.fromEntries(D.circuits.map(c => [c.rank, c]));
 const short = r => C[r] ? C[r].short : `circuit ${r}`;
@@ -537,7 +551,7 @@ function plate(root, c){
   const tpl = document.getElementById("fig-" + c.rank);
   root.innerHTML = `<div class="pnl"><div class="pl">A <span>${c.rank === 1 ? `Lead circuit, proposed by ${esc(c.support)} attempts` : `Circuit ${c.rank}, proposed by ${esc(c.support)} attempts`}</span></div>
     <div class="fa"></div><div class="steps"><span class="k">Steps</span>${c.steps.map(s => `<button type="button" class="${s.status}" data-s="${s.i}" aria-pressed="false" title="${esc(WORD[s.status]||s.status)}: ${esc(s.source)} → ${esc(s.target)}">${s.i}</button>`).join("")}</div>
-    <div class="legend"><span>${line(3.2)}seen in this data</span><span>${line(1.6)}inferred</span><span>${line(1.6,"6 4")}speculative</span><span>${line(1.6,"2 4")}published elsewhere</span></div></div>
+    <div class="legend">${D.version && D.version.version > 1 ? `<span>${line(4.4)}shown at the bench</span>` : ""}<span>${line(3.2)}seen in this data</span><span>${line(1.6)}inferred</span><span>${line(1.6,"6 4")}speculative</span><span>${line(1.6,"2 4")}published elsewhere</span>${D.version && D.version.version > 1 ? `<span>${line(1.6, "1 3", "var(--sel)")}refuted at the bench</span>` : ""}</div></div>
     <div class="pnl pb" aria-live="polite"></div>`;
   const fa = root.querySelector(".fa"), pb = root.querySelector(".pb");
   if (tpl) fa.appendChild(tpl.content.cloneNode(true)); else fa.innerHTML = `<p class="quiet">This circuit names no cells to draw: ${esc(c.steps.map(s => s.source + " → " + s.target).join("; "))}.</p>`;
@@ -702,6 +716,28 @@ function drugChart(){
 }
 drugChart();
 
+/* versions: the switch, and what changed from the parent (docs/VERSIONS.md) */
+(function versionsView(){ const V = D.version, fam = D.family || [];
+  if (fam.length > 1) { const here = location.pathname.match(/\/v(\d+)\/[^/]*$/), pre = here ? "../" : "";
+    $("#vsel").innerHTML = fam.map(f => `<option value="${f.version}" ${f.version === V.version ? "selected" : ""}>v${f.version} · ${esc(f.label)}${f.date ? ", " + esc(f.date) : ""}</option>`).join("");
+    $("#vsw").hidden = false;
+    $("#vsel").addEventListener("change", e => { location.href = `${pre}v${e.target.value}/index.html${location.hash}`; }); }
+  const C = D.changes; if (!C) return;
+  const oc = x => x.kind === "result" ? `<span class="oc ${esc(x.outcome)}">${esc(x.outcome)}</span>` : "";
+  const items = C.items.map(x => `<li class="xi"><b>${esc(x.id)}</b>${esc(x.kind === "result" ? (x.experiment ? "Experiment " + x.experiment + ": " : "") + (x.title || "") : x.kind)}${oc(x)}<small>${esc(x.kind === "result" ? x.found : x.text)}</small></li>`).join("");
+  const grades = C.diff.grades.map(g => `<li>Circuit ${g.rank}, step ${g.step}: ${esc(g.edge)}<small>${esc(WORD[g.from] || g.from)} → ${esc(WORD[g.to] || g.to)}${g.ids.length ? " · " + esc(g.ids.join(", ")) : ""}</small></li>`).join("");
+  const circ = [...C.diff.moved.map(m => `<li>${esc(m.title)}<small>rank ${m.from} → ${m.to}</small></li>`),
+                ...C.diff.dropped.map(m => `<li>${esc(m.title)}<small>dropped (was ${m.rank})</small></li>`),
+                ...C.diff.added.map(r => `<li>Circuit ${r}<small>new in this version</small></li>`)].join("");
+  const drugs = [...C.diff.drugs.moved.map(d => `<li>${esc(cap(d.drug))}<small>#${d.from} → #${d.to}</small></li>`),
+                 ...C.diff.drugs.added.map(d => `<li>${esc(cap(d))}<small>new</small></li>`), ...C.diff.drugs.dropped.map(d => `<li>${esc(cap(d))}<small>no longer listed</small></li>`)].join("");
+  const col = (h, body) => body ? `<div><h3>${h}</h3><ul>${body}</ul></div>` : "";
+  $("#changed").innerHTML = `<h2>What changed in version ${V.version}</h2><p class="when">${esc(V.label)}${V.date ? ", " + esc(V.date) : ""}${V.by ? ", from " + esc(V.by) : ""}; built on version ${esc(String(C.parent_version))}, which stays as it was.</p>
+    ${C.text ? `<p class="what">${esc(C.text)}</p>` : ""}<div class="cg">${col("New input", items)}${col("Steps regraded", grades)}${col("Circuits", circ)}${col("Drugs", drugs)}</div>`;
+  $("#changed").hidden = false;
+  const done = D.done || []; if (done.length) $("#xdone").innerHTML = `<h2 class="sec">Done at the bench</h2><ul class="lst">${done.map(x => `<li><span class="n">${esc(x.experiment || x.id)}</span><div>${esc(x.title || (D.experiments.find(e => e.id === x.experiment) || {}).title || "")}<small><b>${esc(x.outcome)}</b>: ${esc(x.found)}</small></div></li>`).join("")}</ul>`;
+})();
+
 /* every drug the lookups found, and what became of it: so an absent drug can be explained */
 (function considered(){ const cs = D.considered || []; if (!cs.length) return;
   const ST = {"listed": "listed above", "passed over": "passed over", "dropped": "dropped by the checks", "not chosen": "not chosen"};
@@ -774,7 +810,7 @@ $("#evl").addEventListener("click", ev => { if (ev.target.id === "evmore") { evN
   const NAME = {dossier: "Pathology dossier", check: "Do we see the pathology?", panel: "Expert panel", generate: "First hypotheses",
     candidates: "Candidate mechanisms", verify_r: "Verification", scout: "Literature scout", investigate: "Investigation", chase: "Chase",
     synthesize: "Synthesis", critique: "Critique", linkage: "Disease linkage", revise: "Revision", circuits: "Circuits",
-    experiment: "Experiments", therapy: "Treatments", harness: "Accounts and limits"};
+    refine: "Refining after new input", experiment: "Experiments", therapy: "Treatments", harness: "Accounts and limits"};
   const by = new Map(); T.forEach(r => { const k = r[1] || "other"; if (!by.has(k)) by.set(k, []); by.get(k).push(r); });
   const row = r => { const [t, , who, kind, text, full, rid] = r;
     const head = `<span class="tt">${esc(t.slice(11, 16))}</span><b>${esc(kind === "result" ? rid : who)}</b>`;

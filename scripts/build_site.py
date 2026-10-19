@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from mechanist import agents, cellfig, mark  # noqa: E402
+from mechanist import agents, cellfig, mark, versions  # noqa: E402
 from mechanist.present import load_run, panel_data, holds_in  # noqa: E402
 
 TEMPLATE = ROOT / "src" / "mechanist" / "site_template.html"
@@ -156,6 +156,17 @@ def full_record(dirs: list[Path], res: dict) -> list[list]:
     return rows
 
 
+def changes(run: Path, ctx: dict) -> dict | None:
+    """In a version after the first: what changed from its parent (versions.diff), the refiner's account, the items."""
+    v = versions.info(run)
+    if v["version"] < 2:
+        return None
+    parent_ctx, _ = load_run(run.parent / v["parent"])
+    rf = ctx.get("refine") or {}
+    return {"diff": versions.diff(parent_ctx, ctx), "text": rf.get("changes", ""), "items": v["items"],
+            "accounting": rf.get("accounting") or [], "parent_version": versions.number(run.parent / v["parent"])}
+
+
 def reviews(v) -> list[dict]:
     out = []
     for r in v or []:
@@ -229,6 +240,11 @@ def build(run: Path, portal: bool, human: bool = True) -> str:
         {"key": "circuits", "n": 6, "name": "Circuits", "count": f"{sum(len(a['circuits']) for a in attempts)} proposed, {len(circs)} after merging",
          "reviews": reviews(st("circuits").get("reviews")),
          "asks": "With the facts settled: which complete circuits could produce the disease as seen? Three attempts work blind, then merge."},
+        *([{"key": "refine", "n": "R", "name": "Refining after new input",
+             "count": f"{len((ctx.get('refine') or {}).get('items') or [])} items",
+             "reviews": reviews(st("refine").get("reviews")),
+             "asks": "How does what came back from the bench and the scientists change the circuits?"}]
+          if ctx.get("refine") else []),
         {"key": "experiment", "n": 7, "name": "Experiments", "count": f"{len(ex.get('experiments') or [])} experiments",
          "reviews": reviews(ex.get("reviews")), "asks": "What would show whether each circuit is true?"},
         {"key": "therapy", "n": 8, "name": "Treatments", "count": f"{len(th.get('hypotheses') or [])} drugs", "reviews": reviews(th.get("reviews")),
@@ -273,6 +289,8 @@ def build(run: Path, portal: bool, human: bool = True) -> str:
             "circuits": circuits, "experiments": ex.get("experiments") or [], "programmes": ex.get("programmes") or [],
             "not_testable": ex.get("not_testable") or [], "therapy": th.get("hypotheses") or [], "missing": ms,
             "considered": th.get("considered") or [], "trace": full_record(dirs, res), "design": design,
+            "version": versions.info(run), "family": versions.family(run), "done": ex.get("done") or [],
+            "changes": changes(run, ctx),
             "stages": stages, "record": record, "results": results, "chat": chat,
             "counts": {"tools": len(res), "lit": sum(1 for r in res.values() if r.get("tool") == "literature_search"),
                        "gates": gates, "attempts": len(attempts) or 1},

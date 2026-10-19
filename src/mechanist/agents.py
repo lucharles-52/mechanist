@@ -1668,6 +1668,47 @@ def circuit_consensus(llm, tag: str, phenotype: str, items: str, attempts: list[
     return ans if isinstance(ans, dict) and isinstance(ans.get("groups"), list) and ans["groups"] else None
 
 
+REFINE_SYSTEM = f"""You are the team's hypothesizer, back after the run with new input: results from the bench, facts,
+questions or steers from the scientists (items X1, X2, ...). {WORKFLOW}
+Your job: say how the new input changes the circuits, and give the refined circuits.
+For EVERY item, in accounting: which circuits and steps it bears on and how (supports, refutes, neither, answered,
+weighed), with the reason. A result is read against what the plan said it would show: the experiment's "shows",
+"refutes_if" and its predictions per circuit. A fact is literature, never data. A question gets an answer, from the
+data tools when needed (cite the result ids). A steer is weighed against the evidence and followed only when the
+evidence allows; say which.
+Then the refined circuits, in the same form as before. Keep a step's grade unless an item moves it:
+- "bench": a submitted result shows the step (cite its X id; outcome positive or mixed);
+- "refuted": a submitted result argues against the step (cite its X id; outcome negative or mixed). Keep the step in
+  the circuit, graded refuted, so a reader sees what was ruled out.
+A circuit whose needed step is refuted goes down the ranking or is dropped, unless you say in its summary why the
+refutation does not break it. A circuit may gain steps the new input shows, or a new circuit may appear when the input
+demands one. Do not change what the input does not bear on. Keep each circuit's title unless its claim changed.
+Tools, at most {{steps}} calls, to answer questions or check what a result implies in this data.
+Reply with ONE JSON object per turn: a tool call {{{{"purpose": str, "tool": str, "args": {{{{...}}}}}}}} or
+{{{{"answer": {{{{"accounting": [{{{{"item": "X1", "bears_on": [str (e.g. "circuit 1 step 3")], "verdict":
+"supports"|"refutes"|"neither"|"answered"|"weighed", "reason": str, "ids": [ids]}}}}], "changes": str (3-6 sentences:
+what moved and why), "circuits": [ the circuits, each {{{{"rank", "title", "summary", "root", "edges": [{{{{"source",
+"target", "via", "status": "bench"|"refuted"|"observed"|"likely"|"analogy"|"speculative", "ids", "note"}}}}], "loops",
+"phenotype", "predictions", "analogue", "unused", "confidence"}}}} ], "ranking": str}}}}}}}}"""
+
+REFINE_USER = """{context}
+
+Disease phenotype (from configuration): {phenotype}
+
+THE CIRCUITS AS THEY STAND (version {version}):
+{circuits}
+
+THE EXPERIMENT PLAN THEY CAME WITH (id, title, what it shows, what would refute it, predictions per circuit):
+{plan}
+
+NEW INPUT:
+{items}
+
+Tools (args as named):
+{catalog}
+{previous}"""
+
+
 CIRCUIT_USER = """{context}
 
 Disease phenotype (from configuration): {phenotype}

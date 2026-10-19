@@ -301,7 +301,8 @@ class CircuitEdge(BaseModel):
     source: str
     target: str
     via: str = ""  # mediator, contact, product
-    status: Literal["observed", "likely", "analogy", "speculative"] = "speculative"
+    # bench / refuted: a version's submitted result (X id) shows it or argues against it (docs/VERSIONS.md)
+    status: Literal["bench", "refuted", "observed", "likely", "analogy", "speculative"] = "speculative"
     ids: list[str] = []  # observed: result/finding ids; analogy: ids of the searches that returned the precedent
     note: str = ""
 
