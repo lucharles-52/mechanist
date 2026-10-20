@@ -105,17 +105,3 @@ def test_a_message_reaches_later_stages_and_a_resume_rereads_it(projects, findin
     Runner(_cfg(projects), run_dir, llm_backend=Replay({}), cells=make_cells()).run()
     assert (run_dir / "llm_calls.jsonl").read_text().count("\n") == calls
     assert [x["from_stage"] for x in live.thread(run_dir)] == ["load", None]
-
-
-def test_the_pi_cannot_pass_circuits_while_a_coherence_problem_stands(projects, tmp_path, monkeypatch):
-    from mechanist import agents
-    r = Runner(_cfg(projects), tmp_path / "g", llm_backend=Replay({}))
-    monkeypatch.setattr(agents, "pi_gate", lambda *a, **k: {"verdict": "pass", "demands": [], "new_tests": 1,
-                                                            "new_testable_predictions": 1, "assessment": "fine"})
-    problems = [["Circuit 1 has 17 steps (at most 12)"], []]
-    acted = []
-    reviews = r._gate("ctx", "7. Circuits", lambda: "m", lambda d, n: (acted.append(d), problems.pop(0)), "circuits:k1",
-                      blockers=lambda: problems[0])
-    assert reviews[0]["verdict"] == "revise" and reviews[0]["blocked_by_code"] == ["Circuit 1 has 17 steps (at most 12)"]
-    assert acted[0][0]["text"].startswith("Circuit 1 has 17 steps")
-    assert reviews[1]["verdict"] == "pass" and reviews[1]["closed_by"] == "pass"

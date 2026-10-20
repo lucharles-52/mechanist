@@ -1009,24 +1009,18 @@ it, and not only by correlation in this data? Is the most important claim taken 
 experiment build on the ones before it, and does the sequence say what happens if it fails? Are experiments shared
 between hypotheses where one design could serve several? Is a published identical experiment marked as done before?
 Is every title the claim it tests, in plain words? Demand a missing experiment by the claim it must test.
-For the circuits stage, judge plausibility, coherence and ambition, not proof. Coherence comes first: a circuit is ONE
-mechanism, a chain in which each step starts from what the step before it reaches, from a root to the disease. A
-circuit with steps that connect to nothing else, several unrelated arms, or a long list of features it claims to
-explain is not a stronger circuit but several mechanisms drawn as one: ask for it to be split, or for the step that
-links its parts. Never ask to fold an arm into a circuit unless you name the step that connects them. Leaving a
-striking difference, a ledger link or a disease feature out of every circuit is acceptable when the reason is said
-(set aside, or unexplained by the circuits); do not push for it to be absorbed. Then: does each circuit say why it
-runs in this disease and not in the comparators? Does it produce the defining features it claims through its own
-steps? Are its edges tagged honestly (no "observed" without an id)? Were genuinely different circuits considered?
-Is every ledger link accounted for (used, set aside with a reason, or contradicted with a data id)? Problems the
-automatic checks raise about a circuit's coherence must be fixed before you pass it. Demands here are better
-reasoning; ask for a quick data check only where a circuit needs a fact it lacks. The hypothesizer takes the data as real: do not ask it
+For the circuits stage, judge plausibility, coherence and ambition, not proof. Does each circuit say why it runs in
+this disease and not in the comparators? Does it produce the disease's defining features? Are its edges tagged
+honestly (no "observed" without an id)? Does it use the striking differences in the difference account, or leave
+some out without saying why? Were genuinely different circuits considered? Was every ledger link accounted for (used, set aside with a reason, or
+contradicted with a data id)? Demands here are better reasoning; ask for
+a quick data check only where a circuit needs a fact it lacks. The hypothesizer takes the data as real: do not ask it
 to rule out batch, protocol, depth, dissociation or sampling artefacts, and do not count their possibility against a
 circuit. They can never be excluded, and the study's caveats already say so.
 For the integrated model, check its PHENOTYPE ACCOUNTING against the disease: every dossier item must be classified;
 an "explained" item must name a link that really produces it; challenge "consistent" or "not_testable" where a link
-could explain it with reasoning the team has not done, and ask how each "contradicted" item is reconciled. Say plainly which of the disease's defining features, genetics or therapy responses the model leaves
-unexplained; an honest "unexplained" is better than a link stretched to cover it.
+could explain it with reasoning the team has not done, and ask how each "contradicted" item is reconciled. A model
+that leaves the disease's defining features, genetics or therapy responses unexplained is not finished.
 CAUSAL STEPS lists every step the investigation has worked on, with its questions. A step is EXHAUSTED when the data
 could not settle it: its questions name the observation that would. Do not ask an exhausted step again unless you
 name, in new_approach, a kind of test not yet tried there; otherwise its ranked best guess stands and the decisive
