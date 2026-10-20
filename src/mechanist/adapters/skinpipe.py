@@ -129,13 +129,21 @@ def _pick_comparison(study_dir: Path, case_raw: str | None, ref_raw: str | None,
     if len(refs) > 1:
         raise ValueError(f"{study_dir.name}: {case_raw!r} is compared with several references ({'; '.join(refs)}); "
                          f"set adapter_options.reference")
+    # the preferred route across every matching comparison, not the first folder in name order: a deep dive of one
+    # compartment (deep_dive_*) sorts before the whole-study comparison (global_*), and its tables cover that
+    # compartment only (p047's reruns read the EMPD-tumour tables once the deep dive existed, 2026-10-19)
+    found = []
     for pair, d in hits:
         routes = {r["route"]: r for r in d.get("routes") or [] if isinstance(r, dict) and r.get("route")}
-        names = [route] if route else [r for r in ROUTES if r in routes] + [r for r in routes if r not in ROUTES]
-        for name in names:
-            if name in routes and (pair / name).is_dir():
-                return pair, d, routes[name]
-    return None
+        for name, r in routes.items():
+            if (route is None or name == route) and (pair / name).is_dir():
+                newest = -(pair / "run_manifest.yaml").stat().st_mtime  # a comparison renamed in a later plan leaves
+                found.append((ROUTES.index(name) if name in ROUTES else len(ROUTES), bool(d.get("compartment")),  # its old
+                              newest, str(pair), pair, d, r))  # folder behind: the newest is the current plan's
+    if not found:
+        return None
+    *_, pair, d, r = min(found, key=lambda x: x[:4])
+    return pair, d, r
 
 
 def _table_paths(route_dir: Path) -> dict[str, Path]:
