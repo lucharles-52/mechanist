@@ -1,6 +1,6 @@
 """Make a new version of a finished run from new input (docs/VERSIONS.md).
 
-    uv run --extra cells python scripts/refine.py runs/<run-or-latest-version> inputs.yaml [--label "after IHC"]
+    uv run --extra cells python scripts/refine.py runs/<run-or-latest-version> inputs.yaml [--label "after IHC"] [--check]
 
 The input file lists bench results (by the plan's experiment ids, or new ones) and notes (facts with a source,
 questions, steers). It is checked first; nothing is created when it does not pass. Then a new folder runs/<run>.vN
@@ -28,12 +28,22 @@ def main() -> None:
     ap.add_argument("inputs", type=Path, help="the input file (YAML)")
     ap.add_argument("--label", default="", help="a short name for the version, shown in the site's version switch")
     ap.add_argument("--config", type=Path, help="default: the parent's own config.yaml")
+    ap.add_argument("--check", action="store_true", help="check the input file only; print its problems (exit 2)")
     a = ap.parse_args()
     parent = a.parent.resolve()
     from mechanist.present import load_run
     pctx, _ = load_run(parent)
     plan = {e.get("id") for e in (pctx.get("experiment") or {}).get("experiments") or []}
-    inputs = versions.load_inputs(a.inputs.resolve(), plan)  # raises with every problem listed; nothing made yet
+    try:
+        inputs = versions.load_inputs(a.inputs.resolve(), plan)  # every problem listed; nothing made yet
+    except versions.InputError as exc:
+        print(f"input not usable: {exc}")
+        raise SystemExit(2)
+    if a.check:
+        unsourced = [x["id"] for x in inputs["items"] if x["kind"] == "fact" and not x.get("sourced")]
+        print(f"input ok: {len(inputs['items'])} items" + (f"; facts whose source did not resolve: {', '.join(unsourced)}"
+                                                          if unsourced else ""))
+        return
     child = versions.make(parent, a.inputs.resolve(), inputs, a.label)
     print(f"version {versions.number(child)} at {child}")
 

@@ -50,6 +50,44 @@ def study_of(run: Path) -> str:
     return m.group(1).strip("'\"")
 
 
+def chain(run: Path) -> list[Path]:
+    """The run and the runs it builds on (events.jsonl "inputs" source), newest first."""
+    out: list[Path] = []
+    while run is not None and run.is_dir() and run not in out:
+        out.append(run)
+        src = None
+        ev = run / "events.jsonl"
+        for line in (ev.read_text().splitlines() if ev.exists() else []):
+            try:
+                e = json.loads(line)
+            except ValueError:
+                continue
+            if e.get("action") == "inputs" and e.get("source"):
+                src = Path(e["source"])
+        if src is None:
+            break
+        hits = [src] if src.is_absolute() else []
+        hits += [MECH / "runs" / src.name] + [MECH.parent / d / "runs" / src.name for d in ("mechanist", "mechanist-experiments")]
+        run = next((h.resolve() for h in hits if h.is_dir()), None)
+    return out
+
+
+def plan(run: Path, n: int) -> dict:
+    """The newest version's experiment plan, for the portal's bench-results form: each experiment's id, title and
+    what it shows, and which ones a version already has results for."""
+    exp = next((json.loads((r / "experiment.json").read_text()) for r in chain(run) if (r / "experiment.json").exists()), {})
+    done = {}
+    for r in chain(run):
+        v = r / "version.json"
+        for x in (json.loads(v.read_text()).get("items") or []) if v.exists() else []:
+            if x.get("kind") == "result" and x.get("experiment"):
+                done.setdefault(x["experiment"], x.get("outcome"))
+    keys = ("id", "title", "question", "tier", "shows", "refutes_if", "readout")
+    return {"run": run.name, "version": n, "experiments": [
+        {k: e.get(k) for k in keys} | {"done": done.get(e.get("id"))} for e in exp.get("experiments") or []
+        if isinstance(e, dict) and e.get("id")]}
+
+
 def keep(path: Path, backup: Path) -> None:
     if path.exists():
         backup.mkdir(parents=True, exist_ok=True)
@@ -103,6 +141,8 @@ def publish(run: Path, upload: bool = True) -> None:
         if src.exists():
             shutil.copy2(src, pub / f)
     man.write_text(json.dumps({"root": root, "newest": newest, "versions": fam}, indent=1))
+    newest_run = run.with_name(next(v["folder"] for v in fam if v["version"] == newest))
+    (pub / "plan.json").write_text(json.dumps(plan(newest_run, newest), indent=1, ensure_ascii=False))
     analyses = (pub / "analyses.html").exists()
     print(f"published {run.name} (version {n}; newest {newest}) to {pub}")
 

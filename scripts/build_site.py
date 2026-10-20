@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from mechanist import agents, cellfig, mark, versions  # noqa: E402
+from mechanist import agents, cellfig, live, mark, versions  # noqa: E402
 from mechanist.present import load_run, panel_data, holds_in  # noqa: E402
 
 TEMPLATE = ROOT / "src" / "mechanist" / "site_template.html"
@@ -289,7 +289,7 @@ def build(run: Path, portal: bool, human: bool = True) -> str:
             "circuits": circuits, "experiments": ex.get("experiments") or [], "programmes": ex.get("programmes") or [],
             "not_testable": ex.get("not_testable") or [], "therapy": th.get("hypotheses") or [], "missing": ms,
             "considered": th.get("considered") or [], "trace": full_record(dirs, res), "design": design,
-            "version": versions.info(run), "family": versions.family(run), "done": ex.get("done") or [],
+            "version": versions.info(run), "family": versions.family(run), "done": ex.get("done") or [], "chat": live.thread(run),
             "changes": changes(run, ctx), "portal": versions.portal_names(rcfg),
             "stages": stages, "record": record, "results": results, "chat": chat,
             "counts": {"tools": len(res), "lit": sum(1 for r in res.values() if r.get("tool") == "literature_search"),

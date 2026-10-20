@@ -29,7 +29,7 @@ import yaml
 from pydantic import BaseModel
 
 from mechanist import agents, cellfig, report
-from mechanist import versions
+from mechanist import live, versions
 from mechanist import findings as fnd
 from mechanist import investigate as inv
 from mechanist.adapters import p033, skinpipe
@@ -68,7 +68,7 @@ STAGES = {"multi": ["load", "findings", "panel", "generate", "verify_r0", "scout
 LIT_TOOLS = {"literature_search", "gene_diseases", "find_findings", "known_regulators", "known_pairs", "receptor_paths"}
 DOSSIER_TOOLS = LIT_TOOLS | {"trial_search"}  # the dossier also reads what the field is trialling
 # fields added after runs began: left out of stage fingerprints while at these defaults, so older runs keep their cache
-FP_DEFAULTS = {"study_question": False, "therapy_steps": 6, "therapy_targets": 30, "experiment_papers": 120}
+FP_DEFAULTS = {"study_question": False, "live": True, "therapy_steps": 6, "therapy_targets": 30, "experiment_papers": 120}
 DRUG_TOOLS = {"literature_search", "gene_diseases", "gene_drugs", "find_findings"}  # experiments and therapy
 # the hypothesizer checks its speculation with these (published analogues, a needed receptor or co-occurrence)
 CIRCUIT_TOOLS = {"literature_search", "gene_profile", "coexpression", "lineage_changes", "gene_by_state", "find_findings"}
@@ -215,6 +215,7 @@ class RunConfig(BaseModel):
     # give every stage the submitter's question (metadata/submission.yaml). Off by default: a blinded run's submission
     # can name the answer. While off it is left out of the stage fingerprints, so runs that predate it keep their cache.
     study_question: bool = False
+    live: bool = True  # read messages sent from the portal while the run goes, and reply (docs/LIVE.md)
     scout_searches_per_hypothesis: int = 3
     scout_searches_total: int = 10
     scout_new_hypotheses: int = 2
@@ -258,6 +259,9 @@ class Runner:
         self._lit_fetch = lit_fetch
         self._ot_fetch = ot_fetch
         self._deferred: list[dict] = []  # asks for an exhausted step that named no new kind of test
+        self._order: list[str] = []  # the run's stages in order, once run() starts (messages are delivered by it)
+        self._current = ""
+        self._notes = [m for m in live.thread(self.dir) if m["from_stage"]]  # messages already delivered (resume)
         (self.dir / "config.yaml").write_text(yaml.safe_dump(cfg.model_dump(), sort_keys=False))
 
     # ---- plumbing -------------------------------------------------------------------------------------------
@@ -321,6 +325,9 @@ class Runner:
                    "deps": [self.fps[d] for d in deps]})
         out = self.dir / f"{name}.json"
         prev = self.state.get(name, {})
+        notes = live.applied(self._notes, name, self._order)
+        if notes:  # messages from the portal this stage reads (only then, so a run without any keeps its fingerprints)
+            fp = _sha([fp, live.fingerprint_part(notes)])
         if not always and prev.get("fingerprint") == fp and prev.get("status") == "complete" and out.exists():
             self.fps[name] = prev["output_sha256"]
             self.event(stage=name, action="skip", fingerprint=fp[:12])
@@ -343,10 +350,31 @@ class Runner:
         if self.cfg.max_revisions == 0:
             stages = [s for s in stages if s not in ("critique", "chase", "revise")]
         ctx: dict = {"stages": stages}
-        for name in stages:
-            ctx[name] = getattr(self, f"_s_{name}")(ctx)
-            if name == stop_after:
-                break
+        self._order = list(stages)
+        (self.dir / "stages.json").write_text(json.dumps(self._order))
+        replier = None
+        if self.cfg.live and self._backend is None:  # a test backend gets no reply thread
+            replier = live.Replier(self.dir, self.cfg.llm, self.cfg.disease_phenotype)
+            replier.start()
+        try:
+            for name in stages:
+                self._current = name
+                if self.cfg.live and self.state.get(name, {}).get("status") != "complete":
+                    # a stage not yet done reads every message that arrived before it starts (its context is built at
+                    # the top of its method, so this comes first); a finished stage keeps what it read
+                    before = len(self._notes)
+                    self._notes = live.take(self.dir, name)
+                    if len(self._notes) != before:
+                        self.event(stage=name, action="messages", ids=[m["id"] for m in self._notes[before:]])
+                ctx[name] = getattr(self, f"_s_{name}")(ctx)
+                if name == stop_after:
+                    break
+        finally:
+            if self.cfg.live:
+                live.arrivals(self.dir)  # a message that came after the last stage is still on the record
+            if replier is not None:
+                replier.once()  # answer anything that came in during the last stage
+                replier.stop.set()
         return self.dir
 
     # ---- helpers --------------------------------------------------------------------------------------------
@@ -368,6 +396,9 @@ class Runner:
             context += "\n\n" + agents.INDEX_PATIENT.format(patient=self.cfg.disease)
         if self.cfg.guidance.strip():
             context += f"\n\nGuidance from the human researcher: {self.cfg.guidance.strip()}"
+        notes = live.notes_text(live.applied(self._notes, self._current, self._order))
+        if notes:
+            context += "\n\n" + notes
         return ds, fs, context
 
     def _base_hyps(self, ctx) -> list[Hypothesis]:
