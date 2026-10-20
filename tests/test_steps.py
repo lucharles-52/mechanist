@@ -632,3 +632,16 @@ def test_treatment_items_sort_evidence_out_and_flag_drugs_naming_no_patient_feat
     cohort, objs = inv.check_therapies(hyps, lk, circuits, [], items, "", "Patient", sections=sections)
     assert next(h for h in cohort if h["drug"] == "DRUGX")["improves"] == ["D01"]  # a cohort: no patient items to name
     assert not [o for o in objs if "own features" in o.text]
+
+
+def test_a_circuit_must_read_as_one_mechanism():
+    chain = [{"source": "T cells", "target": "IFN-γ", "via": "IFNG"}, {"source": "IFN-γ", "target": "keratinocytes", "via": "IFNG"},
+             {"source": "keratinocytes", "target": "neutrophils", "via": "CXCL8"}]
+    other = [{"source": "fibroblasts", "target": "IL24", "via": "IL24"}, {"source": "IL24", "target": "endothelium", "via": "IL24"},
+             {"source": "endothelium", "target": "CSF3", "via": "CSF3"}]
+    assert inv.circuit_parts(chain) == [[1, 2, 3]]
+    assert not inv.check_coherence([{"rank": 1, "edges": chain}])
+    two = inv.check_coherence([{"rank": 2, "edges": chain + other}])
+    assert len(two) == 1 and "separate mechanisms" in two[0].text and "1, 2, 3 | 4, 5, 6" in two[0].text
+    long = inv.check_coherence([{"rank": 3, "edges": chain * 5}])
+    assert any("15 steps" in o.text for o in long)

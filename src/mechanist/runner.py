@@ -1515,7 +1515,7 @@ class Runner:
                             cs.append(c)
                     cs, art = inv.artefact_circuits(cs)
                     known = inv.known_ids({f.id for f in fs}, prior + results)
-                    st["objections"] = art + inv.check_circuits(cs, known, self._lit_ok(prior) | self._lit_ok(results))
+                    st["objections"] = art + inv.check_circuits(cs, known, self._lit_ok(prior) | self._lit_ok(results)) + inv.check_coherence(cs)
                     st["circuits"], st["ranking"] = sorted(cs, key=lambda c: c.rank), str(ans.get("ranking") or "")
                     st["accounting"] = [x for x in ans.get("accounting") or [] if isinstance(x, dict)]
                     st["objections"] += inv.check_accounting(st["accounting"], link_ids, known)
@@ -1562,7 +1562,7 @@ class Runner:
                     cs = [c for c in (self._circuit(c, i) for i, c in enumerate(built, 1)) if c]
                     cs, art = inv.artefact_circuits(cs)
                     known = inv.known_ids({f.id for f in fs}, prior + results)
-                    objs = art + inv.check_circuits(cs, known, self._lit_ok(prior) | self._lit_ok(results))
+                    objs = art + inv.check_circuits(cs, known, self._lit_ok(prior) | self._lit_ok(results)) + inv.check_coherence(cs)
                     # which attempt circuits each merged one stands for (kept off Circuit, whose dump feeds prompts)
                     origin = {c.get("rank"): c.get("merged_from") or [] for c in built}
                     out = {"circuits": [c.model_dump() | {"merged_from": origin.get(c.rank, [])}

@@ -1305,7 +1305,9 @@ def run_items(ctx: dict, design: str = "cohort") -> list[tuple[str, str, str]]:
                            design)
 
 
-PATIENT_ACCOUNTING = ("\n\nP items are this patient's own features: the model must explain them. D items describe the "
+PATIENT_ACCOUNTING = ("\n\nP items are this patient's own features: account for every one, either as explained by the "
+                      "circuit whose own steps produce it, or plainly as unexplained; never stretch a circuit to cover "
+                      "more of them. D items describe the "
                       "candidate diagnoses (the disease is named before each): an explained or consistent D item is a "
                       "similarity between this patient and that disease, a contradicted one a difference; say which.")
 
@@ -1602,7 +1604,10 @@ For each circuit:
   was run), analogy (the same link is published elsewhere; cite the search ids) or speculative (reasoning only).
 - loops: feed-forward or feedback the circuit forms, if any, and what keeps it going.
 - phenotype: how the circuit produces each defining feature of the disease, its course, its genetics and its therapy
-  responses (cite dossier item ids D01, ...), and what it does not explain.
+  responses (cite dossier item ids D01, ...), and what it does not explain. A circuit claims only the items its own
+  steps produce. Never add steps to a circuit to cover more items: a feature made by a different mechanism belongs in
+  its own circuit, and a feature no circuit makes is listed as unexplained. A circuit is one chain of steps, each
+  starting from what the one before it reaches.
 - predictions: observations that would tell this circuit apart from the others; say whether this dataset can make
   each one.
 - analogue: the closest published circuit of this kind in any tissue or disease, if you find one.

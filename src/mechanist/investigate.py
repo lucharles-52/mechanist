@@ -746,6 +746,74 @@ def check_circuits(circuits, known: set[str], lit_ids: set[str]) -> list[Objecti
     return out
 
 
+MAX_STEPS = 12  # longer, a circuit reads as several mechanisms drawn as one (p044 S3's lead had 17, 2026-10-20)
+MAX_PLAYERS = 9  # separate cells and signals in its drawing; more and the ring becomes a tangle
+
+
+def circuit_parts(edges) -> list[list[int]]:
+    """The circuit's steps grouped into chains (1-based step numbers): two steps are in one chain when what one step
+    reaches (its target: cell families and molecules named) is what another step starts from or acts through. A
+    well-formed circuit is one chain; several chains are separate mechanisms drawn together."""
+    from mechanist import cellfig
+
+    def get(e, k):
+        return str((e.get(k) if isinstance(e, dict) else getattr(e, k, "")) or "")
+
+    def toks(text: str) -> set[str]:
+        return set(cellfig.cells_in(text)) | {cellfig.norm(g) for g in cellfig.genes_in(text, limit=8)}
+    es = list(edges or [])
+    src = [toks(get(e, "source")) | toks(get(e, "via")) for e in es]
+    tgt = [toks(get(e, "target")) for e in es]
+    parent = list(range(len(es)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    for i in range(len(es)):
+        for j in range(len(es)):
+            if i != j and (tgt[i] & src[j]):
+                parent[find(i)] = find(j)
+    groups: dict[int, list[int]] = {}
+    for i in range(len(es)):
+        groups.setdefault(find(i), []).append(i + 1)
+    return sorted(groups.values(), key=lambda g: (-len(g), g[0]))
+
+
+def check_coherence(circuits) -> list[Objection]:
+    """Each circuit must read as one mechanism: at most MAX_STEPS steps, no second chain of three or more steps standing
+    apart from the first (two mechanisms drawn as one), and at most MAX_PLAYERS cells and signals in its drawing.
+    Otherwise the PI hears it, so the circuit is split (each chain its own circuit), trimmed to its core chain, or the
+    missing link named. Calibrated on every published run on 2026-10-20: only p044 S3's lead circuit broke all three."""
+    from mechanist import cellfig
+    out = []
+    for c in circuits:
+        es = list(getattr(c, "edges", None) or (c.get("edges") if isinstance(c, dict) else []) or [])
+        rank = getattr(c, "rank", None) if not isinstance(c, dict) else c.get("rank")
+        plain = [e if isinstance(e, dict) else (e.model_dump() if hasattr(e, "model_dump") else vars(e)) for e in es]
+        parts = circuit_parts(plain)
+        if len(parts) > 1 and len(parts[1]) >= 3:
+            out.append(Objection(target=f"circuit {rank}", kind="missing_evidence", source="verifier",
+                                 text=f"Circuit {rank} holds separate mechanisms: steps "
+                                      + " | ".join(", ".join(map(str, g)) for g in parts if len(g) >= 2)
+                                      + " form chains that do not connect. Split it, one circuit per chain, or add the "
+                                        "step that links them."))
+        if len(es) > MAX_STEPS:
+            out.append(Objection(target=f"circuit {rank}", kind="missing_evidence", source="verifier",
+                                 text=f"Circuit {rank} has {len(es)} steps (at most {MAX_STEPS}): it reads as several "
+                                      f"mechanisms at once. Keep its core chain; move the rest into their own circuits "
+                                      f"or into 'unused'."))
+        g = cellfig.build_graph(plain)
+        players = len(g["ring"]) + len(g["centre"])
+        if players > MAX_PLAYERS:
+            out.append(Objection(target=f"circuit {rank}", kind="missing_evidence", source="verifier",
+                                 text=f"Circuit {rank} has {players} separate cells and signals (at most {MAX_PLAYERS}), "
+                                      f"so its drawing becomes a tangle. Name the same cell the same way at both ends of "
+                                      f"steps, and move side branches into their own circuits."))
+    return out
+
+
 def check_bench(circuits, items: list[dict], parent: list[dict] | None = None) -> list[Objection]:
     """A version's grades: 'bench' needs a submitted result whose outcome fits (positive or mixed), 'refuted' one that
     argues against (negative or mixed); otherwise the step falls back to 'likely'. A circuit that keeps or improves its
