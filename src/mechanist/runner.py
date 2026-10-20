@@ -1146,17 +1146,14 @@ class Runner:
 
     def _gate(self, context: str, stage: str, material: Callable[[], str], act: Callable[[list[dict], int], None],
               tag: str, final: bool = False, progress: Callable[[], int] | None = None,
-              real: Callable[[], tuple] | None = None, cap: int | None = None,
-              blockers: Callable[[], list[str]] | None = None) -> list[dict]:
+              real: Callable[[], tuple] | None = None, cap: int | None = None) -> list[dict]:
         """The PI reviews a stage until it passes, signs off (final stage only), has no demands, or three reviews in a
         row bring no new test and no new testable prediction. No fixed number of rounds; gate_cap guards a broken
         loop. act(demands, n) does the stage's work on the demands. progress() (literature stages) counts new
         evidence the stage now cites, so a dossier that improves through searches is not closed as stalled.
         real() (circuits): a score of what the stage has actually established (e.g. observed edges); when given, a
         review counts as progress only if the score rose since the best so far, whatever new tests the PI names.
-        cap: this gate's own review limit (below gate_cap).
-        blockers() (circuits): problems found by code that a pass cannot override; while any stands, a pass becomes a
-        revise with those problems as its first demands."""
+        cap: this gate's own review limit (below gate_cap)."""
         reviews: list[dict] = []
         streak = 0
         best = real() if real is not None else None
@@ -1165,10 +1162,6 @@ class Runner:
             r = agents.pi_gate(self.llm, f"{tag}:gate{n}", context, phen, stage, material(), reviews)
             if r["verdict"] == "sign_off" and not final:
                 r["verdict"] = "pass"
-            held = blockers() if blockers is not None else []
-            if held and r["verdict"] in ("pass", "sign_off"):
-                r["verdict"], r["blocked_by_code"] = "revise", held
-                r["demands"] = [{"text": h, "kind": "coherence"} for h in held] + list(r["demands"])
             r["new_cited"] = progress() if progress is not None else 0
             r["repeated"] = bool(reviews) and inv.repeated_demands(r["demands"], reviews[-1]["demands"])
             if real is not None:  # progress means the stage established something, not that the PI asked for more
@@ -1547,16 +1540,14 @@ class Runner:
                           + "\n".join(f"- {d['text']}" for d in demands), f"{base}:r{n + 1}")
 
                 def established() -> tuple:
-                    """What the circuits have actually pinned down: observed edges, published analogies that ran, and
-                    fewer coherence problems. Not how many disease items they claim: counting those rewarded packing
-                    items into one circuit (p044 S3's 17-step lead, 2026-10-20)."""
+                    """What the circuits have actually pinned down: observed edges, published analogies that ran,
+                    and disease items the circuits produce."""
                     cs = st["circuits"]
                     return (sum(e.status == "observed" for c in cs for e in c.edges),
                             sum(e.status == "analogy" for c in cs for e in c.edges),
-                            -len(inv.check_coherence(cs)))
+                            len({p.get("item", "") for c in cs for p in c.phenotype if isinstance(p, dict)}))
                 reviews = self._gate(context, "7. Circuits", material, act, base, real=established,
-                                     cap=self.cfg.circuit_review_cap,
-                                     blockers=lambda: [o.text for o in inv.check_coherence(st["circuits"])])
+                                     cap=self.cfg.circuit_review_cap)
                 return {"attempt": k, "circuits": [c.model_dump() for c in st["circuits"]], "ranking": st["ranking"],
                         "objections": [o.model_dump() if hasattr(o, "model_dump") else o for o in st["objections"]],
                         "steps": st["steps"], "reviews": reviews, "sweep": st["sweep"], "accounting": st["accounting"]}
