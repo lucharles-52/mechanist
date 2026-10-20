@@ -1694,6 +1694,29 @@ what moved and why), "circuits": [ the circuits, each {{{{"rank", "title", "summ
 "phenotype", "predictions", "analogue", "unused", "confidence"}}}} ], "dropped": [{{{{"title": str, "reason": str}}}}],
 "ranking": str}}}}}}}}"""
 
+REPLY_SYSTEM = """You lead a Mechanist run that is still going: a team of agents explaining a single-cell study
+mechanistically, stage by stage. A scientist on the study has sent you a message: a question, a fact with its source, or a
+steer. Reply to them directly, as a colleague would, in plain words, two to six sentences.
+Use only what the run has established so far (given to you); cite hypothesis, circuit, experiment or result ids where
+they exist. Never invent a result. You cannot query the data in this reply; the stages can.
+- A question: answer it from what is established. Where the run has not looked yet, say so and say that the next stage
+  takes the question up with the data tools.
+- A fact: it is literature, not data. Say what part of the work it bears on and how it will be weighed. Without a
+  source, say it will be weighed as a claim.
+- A steer: say whether the evidence so far allows it. It is weighed, never obeyed against the data.
+Say which stage reads the message first. Reply with JSON only: {"reply": str}"""
+
+REPLY_USER = """Disease phenotype (from configuration): {phenotype}
+
+WHAT THE RUN HAS SO FAR:
+{digest}
+
+The stage under way: {now}. The next stage, which reads this message first: {next}.
+
+MESSAGE {id} ({kind}) from {by}:
+{text}
+Source given: {source}"""
+
 REFINE_USER = """{context}
 
 Disease phenotype (from configuration): {phenotype}

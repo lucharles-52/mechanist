@@ -432,6 +432,7 @@ pre.sum{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,C
       <div class="path" id="paths"></div>
       <div id="xnt"></div>
       <div id="xdone"></div>
+      <div id="xchat"></div>
     </article>
     <aside class="margin"><div id="xcorr" class="corr"></div></aside>
   </div>
@@ -743,6 +744,7 @@ drugChart();
   $("#changed").innerHTML = `<h2>What changed in version ${V.version}</h2><p class="when">${esc(V.label)}${V.date ? ", " + esc(V.date) : ""}${V.by ? ", from " + esc(V.by) : ""}; built on version ${esc(String(C.parent_version))}, which stays as it was.</p>
     ${C.text ? `<p class="what">${esc(C.text).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")}</p>` : ""}<div class="cg">${col("New input", items)}${col("Steps regraded", grades)}${col("Circuits", circ)}${col("Drugs", drugs)}</div>`;
   $("#changed").hidden = false;
+  const chat = D.chat || []; if (chat.length) $("#xchat").innerHTML = `<h2 class="sec">Messages during the run</h2><p class="secsub">Sent by the study's scientists from the portal while the run was going. Each was read by every stage from the one named on; a fact counts as literature, a steer was weighed against the data.</p><ul class="lst">${chat.map(m => `<li><span class="n">${esc(m.id)}</span><div><b>${esc(m.kind)}</b> from ${esc(m.by || "a scientist")}: ${esc(m.text)}${m.source ? ` <small>(source: ${esc(m.source)})</small>` : ""}<small>${m.from_stage ? `read from the ${esc(m.from_stage)} stage on` : "arrived after the last stage; not read by the run"}${m.reply ? ` · reply: ${esc(m.reply)}` : ""}</small></div></li>`).join("")}</ul>`;
   const done = D.done || []; if (done.length) $("#xdone").innerHTML = `<h2 class="sec">Done at the bench</h2><ul class="lst">${done.map(x => `<li><span class="n">${esc(x.experiment || x.id)}</span><div>${esc(x.title || (D.experiments.find(e => e.id === x.experiment) || {}).title || "")}<small><b>${esc(x.outcome)}</b>: ${esc(x.found)}</small></div></li>`).join("")}</ul>`;
 })();
 
