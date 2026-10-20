@@ -277,6 +277,8 @@ p.secsub{font-size:15.5px;color:var(--ink-2);max-width:70ch;margin:0 0 16px}
 .dtab tr[data-dd]{cursor:pointer}.dtab tr[data-dd]:hover td,.dtab tr.on td{background:var(--accent-soft)}
 .dtab .dn{font:600 15.5px var(--serif)}
 .dtab small{display:block;font:400 12.5px/1.4 var(--label);color:var(--muted)}
+.mkr{display:inline-flex;align-items:center;gap:5px;margin:3px 0 0;font:500 11.5px/1.3 var(--label);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
+.mkr i{font-style:normal;color:var(--sel)}.dtab .mkr{display:flex}
 .also{display:inline-block;min-width:20px;height:20px;border:1px solid var(--ink);font:600 11.5px/18px var(--label);text-align:center;margin-right:3px}
 .bets{list-style:none;margin:0;padding:0;font:400 13px/1.4 var(--label)}
 .bets li{display:flex;gap:6px;align-items:baseline}
@@ -342,6 +344,8 @@ pre.sum{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,C
 .gcard .gn{font:italic 600 17px var(--serif)}
 .gcard ul{margin:6px 0;padding-left:16px;color:var(--ink-2)}
 .gcard .lk{display:flex;gap:12px;flex-wrap:wrap}
+abbr.idr{text-decoration:underline dotted var(--muted);text-underline-offset:3px;cursor:help;font-variant-numeric:tabular-nums}
+.gcard .ih{font:500 11.5px/1.3 var(--label);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
 [data-gs]{cursor:help;text-decoration:underline dotted var(--muted);text-underline-offset:3px}
 .foot{padding-block:24px 40px;font:400 12.5px var(--label);color:var(--muted);border-top:1px solid var(--rule);margin-top:40px}
 .foot .wrap{display:flex;gap:20px;justify-content:space-between;flex-wrap:wrap}
@@ -449,6 +453,7 @@ pre.sum{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,C
       <div class="chart" id="dchart"></div>
       <h2 class="sec">Drugs by hypothesis</h2>
       <p class="secsub">Drugs grouped by the hypothesis whose steps they act on, best-supported hypothesis first. Within a hypothesis, the drugs that break more of its steps, and more of the circuits overall, come first; how close a drug is to use is shown but does not set the order. A drug that acts in several hypotheses appears under each, with the others listed. Select a drug to open its full case under its row.</p>
+      <p class="secsub" style="margin-top:-4px"><span class="mkr" style="text-transform:none;letter-spacing:0"><i aria-hidden="true">◎</i>marks the drug most likely to work whichever hypothesis is right; <i aria-hidden="true">◆</i>the drug most specific to one hypothesis, the cleanest test of it.</span></p>
       <div id="byhyp"></div>
       <div id="dconsid"></div>
     </article>
@@ -505,7 +510,17 @@ const sline = s => s === "bench" ? line(4.4) : s === "refuted" ? line(1.6, "1 3"
 const evGlyph = s => `<svg width="22" height="8" aria-hidden="true"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--ink)" stroke-width="${s==="observed"?3:1.5}" ${s==="speculative"?'stroke-dasharray="5 3"':s==="analogy"?'stroke-dasharray="2 3"':""}/></svg>`;
 const C = Object.fromEntries(D.circuits.map(c => [c.rank, c]));
 const short = r => C[r] ? C[r].short : `circuit ${r}`;
-function linkIds(t){ return esc(t).replace(/\b(R\d{3,5})\b/g, (m, id) => D.results[id] ? `<button type="button" class="rid" data-rid="${id}">${id}</button>` : m); }
+/* what a short id stands for: the patient's features (P), the literature items (D), untested links (M), experiments (E),
+   bench input (X) and messages sent during the run (N); shown on hover or focus, so prose can keep its ids */
+function idInfo(id){ const k = id[0];
+  if (k === "P" || k === "D") { const x = (D.record.dossier || []).find(y => y.id === id); return x && {head: x.section, text: x.text}; }
+  if (k === "M") { const m = (D.missing || {})[id]; return m && {head: `untested link${(m.circuits || []).length ? ", circuit " + m.circuits.join(", ") : ""}`, text: m.text}; }
+  if (k === "E") { const e = (D.experiments || []).find(y => y.id === id); return e && {head: "experiment", text: e.title + (e.shows ? " — " + e.shows : "")}; }
+  if (k === "X") { const x = ((D.version || {}).items || []).find(y => y.id === id); return x && {head: x.kind === "result" ? `bench result (${x.outcome})` : x.kind, text: x.found || x.text || x.title}; }
+  if (k === "N") { const n = (D.chat || []).find(y => y.id === id); return n && {head: `${n.kind} from ${n.by || "a scientist"}, during the run`, text: n.text}; }
+  return null; }
+function linkIds(t){ return esc(t).replace(/\b(R\d{3,5})\b/g, (m, id) => D.results[id] ? `<button type="button" class="rid" data-rid="${id}">${id}</button>` : m)
+  .replace(/\b([PDMEXN]\d{1,3})\b/g, (m, id) => idInfo(id) ? `<abbr class="idr" data-idr="${id}" tabindex="0">${id}</abbr>` : m); }
 const ridBtns = ids => (ids || []).filter(i => D.results[i]).map(i => `<button type="button" class="rid" data-rid="${i}">${i}</button>`).join("");
 
 /* ================= theme: the same choice as the study portal (stored under clp:theme) ================= */
@@ -675,22 +690,43 @@ function stepsHit(d, c){ return c.steps.filter(st => st.genes.includes(d.target)
   (d.depends_on || []).some(m => { const x = D.missing[m]; return x && x.kind === "edge" && x.circuits.includes(c.rank) && x.edge === st.i; })); }
 function drugHTML(d){ const dossier = Object.fromEntries((D.record.dossier || []).map(x => [x.id, x]));
   return `<div class="detail"><div class="dhead"><div><div class="lab" style="font-size:12.5px;color:var(--muted)">Drug hypothesis #${d.rank} · ${esc(cap(d.level))}${d.boxed ? " · black-box warning" : ""}</div>
-    <h3 class="sh">${esc(cap(d.drug))} ${gene(d.target)}</h3><p class="via" style="margin:0">${esc(d.mechanism || "")}</p></div><button type="button" class="btn close">Close</button></div>
+    <h3 class="sh">${esc(cap(d.drug))} ${gene(d.target)}</h3>${markHTML(d)}<p class="via" style="margin:0">${esc(d.mechanism || "")}</p></div><button type="button" class="btn close">Close</button></div>
     <div class="dgrid"><table class="kv"><tr><th>Breaks</th><td>${esc(d.breaks || "")}</td></tr>
       <tr><th>Would fail if</th><td>${(d.fails_under||[]).length ? d.fails_under.map(r => `hypothesis ${r} (${esc(short(r))})`).join("; ") + " is the right one" : "no hypothesis named"}</td></tr>
       <tr><th>Robustness</th><td>${Math.round(d.robustness*100)}% of the circuits' support, in hypotheses ${(d.circuits||[]).join(", ")}</td></tr>
       <tr><th>Listed for</th><td>${esc([...new Set(d.indications || [])].slice(0, 6).join(", "))}</td></tr>
       ${(d.warnings||[]).length ? `<tr><th>Warnings</th><td>${d.warnings.map(w => esc(w.type + ": " + w.toxicity)).join("<br>")}</td></tr>` : ""}</table>
-    <div>${(d.improves||[]).length ? `<div class="sub2" style="margin-top:0">${INDEX ? "This patient's features it should improve" : "Disease features it should improve"}</div><ul class="lst">${d.improves.map(i => `<li><span class="n">${esc(i)}</span><div>${esc((dossier[i] || {}).text || "")}</div></li>`).join("")}</ul>` : ""}
+    ${(() => { /* every cited item sorted by its kind, so old and new runs read the same: the patient's own features,
+       a candidate disease's (or the disease's) features, then the literature behind the choice */
+      const all = [...new Set([...(d.improves||[]), ...(d.similar||[]), ...(d.evidence||[])])];
+      const sec = i => (dossier[i] || {}).section || "", kind = i => sec(i).split(":").pop().trim(), about = i => sec(i).includes(":") ? sec(i).split(":")[0].trim() : "";
+      const ev = i => ["therapy response", "difference from comparators"].includes(kind(i));
+      const own = all.filter(i => i.startsWith("P")), lit = all.filter(i => !i.startsWith("P") && ev(i)), feat = all.filter(i => !i.startsWith("P") && !ev(i));
+      const li = (i, tag) => `<li><span class="n">${esc(i)}</span><div>${tag ? `<b style="font-weight:600">${esc(tag)}.</b> ` : ""}${esc((dossier[i] || {}).text || "")}</div></li>`;
+      const tagOf = i => [about(i), kind(i)].filter(Boolean).join(" · ");
+      return (INDEX ? (own.length ? `<div class="sub2" style="margin-top:0">This patient's features it should improve</div><ul class="lst">${own.map(i => li(i, "")).join("")}</ul>`
+                                  : `<p class="quiet" style="margin:0 0 6px"><b>Names none of this patient's own features.</b> What it should improve below is about the candidate diagnoses, not this patient.</p>`) : "")
+        + (feat.length ? `<div class="sub2">${INDEX ? "Where it resembles a candidate disease: features it should improve if this patient is like it" : "Disease features it should improve"}</div><ul class="lst">${feat.map(i => li(i, INDEX ? tagOf(i) : "")).join("")}</ul>` : "")
+        + (lit.length ? `<div class="sub2">The literature behind the choice</div><ul class="lst">${lit.map(i => li(i, tagOf(i))).join("")}</ul>` : "");
+    })()}
     ${(d.reported_in||[]).length ? `<p class="quiet" style="margin:6px 0">Reported in ${esc(d.reported_in.join(" and "))}${INDEX ? ", a candidate diagnosis: a similarity to weigh, not evidence about this patient" : ""}.</p>` : ""}
-    ${(d.similar||[]).length ? `<div class="sub2">Where it resembles a candidate disease</div><ul class="lst">${d.similar.map(i => `<li><span class="n">${esc(i)}</span><div><b style="font-weight:600">${esc(((dossier[i] || {}).section || "").split(":")[0])}.</b> ${esc((dossier[i] || {}).text || "")}</div></li>`).join("")}</ul>` : ""}
     ${d.rationale ? `<div class="sub2">The pharmacologist's reasoning</div><p style="font-size:14.5px;margin:0">${linkIds(d.rationale)}</p>` : ""}</div></div></div>`; }
+/* two marks, by code: the drug most likely to work whichever hypothesis is right (the largest share of the circuits'
+   support, failing under none), and per hypothesis the drug most specific to it (acts only there, on most of its steps) */
+const MARKS = (() => { const m = {}, ds = D.therapy || [];
+  const open = ds.filter(d => !(d.fails_under || []).length && (d.robustness || 0) >= 0.5), top = Math.max(0, ...open.map(d => d.robustness || 0));
+  open.filter(d => d.robustness === top).forEach(d => (m[d.drug] = m[d.drug] || []).push({k: "broad", t: "Works across hypotheses"}));
+  (D.circuits || []).forEach(c => { const only = ds.filter(d => (d.circuits || []).length === 1 && d.circuits[0] === c.rank)
+      .map(d => ({d, n: stepsHit(d, c).length})).filter(x => x.n).sort((a, b) => b.n - a.n || b.d.robustness - a.d.robustness || LIDX(a.d) - LIDX(b.d));
+    if (only.length) (m[only[0].d.drug] = m[only[0].d.drug] || []).push({k: "specific", t: `Specific to hypothesis ${c.rank}`}); });
+  return m; })();
+const markHTML = d => (MARKS[d.drug] || []).map(x => `<span class="mkr" title="${x.k === "broad" ? "Acts on the largest share of the circuits' support and fails under none of them: the most likely to work whichever hypothesis is right" : "Acts only in this hypothesis, on more of its steps than any other drug that does: the cleanest test of it"}"><i aria-hidden="true">${x.k === "broad" ? "◎" : "◆"}</i>${esc(x.t)}</span>`).join("");
 $("#byhyp").innerHTML = D.circuits.map(c => { const ds = D.therapy.filter(d => (d.circuits || []).includes(c.rank))
     .map(d => ({d, hit: stepsHit(d, c)})).sort((a, b) => b.hit.length - a.hit.length || b.d.robustness - a.d.robustness || LIDX(a.d) - LIDX(b.d));
   if (!ds.length) return "";
   return `<section class="hyp"><h3 class="hh">Hypothesis ${c.rank}<span>${esc(c.short)}</span><small>proposed by ${esc(c.support)} attempts · ${ds.length} drug${ds.length > 1 ? "s" : ""}</small></h3>
     <div class="tbw"><table class="dtab"><tr><th>Drug</th><th>How ready</th><th>Acts on these steps</th><th>Also acts in</th><th>Safety</th></tr>${ds.map(({d, hit}) => `<tr data-dd="${esc(d.drug)}" tabindex="0">
-      <td><span class="dn">${esc(cap(d.drug))}</span> ${gene(d.target)}<small>${d.strategy === "cell type" ? `removes ${esc(d.depletes || "a cell type")}s, so it acts in every hypothesis that uses them` : esc((d.mechanism || "").replace(/\s+/g, " "))}</small></td>
+      <td><span class="dn">${esc(cap(d.drug))}</span> ${gene(d.target)}${markHTML(d)}<small>${d.strategy === "cell type" ? `removes ${esc(d.depletes || "a cell type")}s, so it acts in every hypothesis that uses them` : esc((d.mechanism || "").replace(/\s+/g, " "))}</small></td>
       <td>${esc(cap(d.level))}<small>${esc((d.stage || "").replace(/_/g, " ").toLowerCase())}</small></td>
       <td>${hit.length ? `<ul class="bets">${hit.map(st => `<li>${evGlyph(st.status)}<span><b class="lab">${st.i}</b> ${esc((st.source + " → " + st.target).slice(0, 88))}</span></li>`).join("")}</ul>` : `<span class="lab" style="color:var(--muted)">acts through the cell type, not one step</span>`}</td>
       <td>${(d.circuits || []).filter(r => r !== c.rank).map(r => `<span class="also" title="${esc(short(r))}">${r}</span>`).join("") || `<span class="lab" style="color:var(--muted)">only here</span>`}</td>
@@ -850,7 +886,13 @@ function gShow(el){ const g = el.dataset.gs, e = encodeURIComponent(g);
   gcard.innerHTML = `<div class="gn">${esc(g)}</div><ul><li>${st.length ? `Circuit steps ${st.slice(0, 10).join(", ")}` : "On no circuit step"}</li><li>${dr.length ? "Drugs in the panel: " + dr.join(", ") : "No drug in the panel targets it"}</li></ul><div class="lk"><a href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=${e}" target="_blank" rel="noopener">GeneCards ↗</a><a href="https://www.uniprot.org/uniprotkb?query=gene_exact:${e}+AND+organism_id:9606" target="_blank" rel="noopener">UniProt ↗</a><a href="https://www.proteinatlas.org/search/${e}" target="_blank" rel="noopener">Protein Atlas ↗</a></div>`;
   gcard.hidden = false; const b = el.getBoundingClientRect(), w = 290, h = gcard.offsetHeight;
   gcard.style.left = Math.min(Math.max(8, b.left), innerWidth - w - 8) + "px"; let y = b.bottom + 6; if (y + h > innerHeight - 8) y = Math.max(8, b.top - h - 6); gcard.style.top = y + "px"; }
-document.addEventListener("mouseover", ev => { const el = ev.target.closest?.("[data-gs]"); if (el) { clearTimeout(gt); gShow(el); return; } if (ev.target.closest?.(".gcard")) { clearTimeout(gt); return; } clearTimeout(gt); gt = setTimeout(() => gcard.hidden = true, 220); });
-document.addEventListener("focusin", ev => { const el = ev.target.closest?.("[data-gs]"); if (el) gShow(el); else if (!ev.target.closest?.(".gcard")) gcard.hidden = true; });
+function idShow(el){ const id = el.dataset.idr, x = idInfo(id); if (!x) return;
+  gcard.innerHTML = `<div class="ih">${esc(id)} · ${esc(x.head || "")}</div><div>${esc(String(x.text || "").slice(0, 700))}</div>`;
+  gcard.hidden = false; const b = el.getBoundingClientRect(), w = 290, h = gcard.offsetHeight;
+  gcard.style.left = Math.min(Math.max(8, b.left), innerWidth - w - 8) + "px"; let y = b.bottom + 6; if (y + h > innerHeight - 8) y = Math.max(8, b.top - h - 6); gcard.style.top = y + "px"; }
+document.addEventListener("mouseover", ev => { const ie = ev.target.closest?.("[data-idr]"); if (ie) { clearTimeout(gt); idShow(ie); return; } });
+document.addEventListener("focusin", ev => { const ie = ev.target.closest?.("[data-idr]"); if (ie) idShow(ie); });
+document.addEventListener("mouseover", ev => { if (ev.target.closest?.("[data-idr]")) return; const el = ev.target.closest?.("[data-gs]"); if (el) { clearTimeout(gt); gShow(el); return; } if (ev.target.closest?.(".gcard")) { clearTimeout(gt); return; } clearTimeout(gt); gt = setTimeout(() => gcard.hidden = true, 220); });
+document.addEventListener("focusin", ev => { if (ev.target.closest?.("[data-idr]")) return; const el = ev.target.closest?.("[data-gs]"); if (el) gShow(el); else if (!ev.target.closest?.(".gcard")) gcard.hidden = true; });
 addEventListener("scroll", () => gcard.hidden = true, {passive:true});
 </script>

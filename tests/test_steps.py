@@ -612,3 +612,23 @@ def test_one_sample_groups_are_compared_for_an_index_patient_only():
         assert inv.ligand_differs(vals, groups, "Patient")
     finally:
         inv.MIN_N = old
+
+
+def test_treatment_items_sort_evidence_out_and_flag_drugs_naming_no_patient_feature():
+    circuits = [{"rank": 1, "support": "3 of 3"}]
+    lk = {"TGTA": {"drugs": [{"drug": "DRUGX", "stage": "APPROVAL", "actions": [{"action": "inhibitor"}]}]},
+          "TGTB": {"drugs": [{"drug": "DRUGY", "stage": "PHASE_2", "actions": [{"action": "inhibitor"}]}]}}
+    hyps = [{"drug": "DRUGX", "target": "TGTA", "circuits": [1], "improves": ["D01", "D02", "D03"]},
+            {"drug": "DRUGY", "target": "TGTB", "circuits": [1], "improves": ["P01", "D02"]}]
+    items = {"P01", "D01", "D02", "D03"}
+    sections = {"P01": "this patient, seen in the data", "D01": "DiseaseB: mediator or gene",
+                "D02": "DiseaseB: therapy response", "D03": "difference from comparators"}
+    out, objs = inv.check_therapies(hyps, lk, circuits, [], items, "", "Patient", design="index_patient", sections=sections)
+    x, y = (next(h for h in out if h["drug"] == d) for d in ("DRUGX", "DRUGY"))
+    assert x["improves"] == [] and x["similar"] == ["D01"] and x["evidence"] == ["D02", "D03"]
+    assert y["improves"] == ["P01"] and y["evidence"] == ["D02"]
+    flagged = [o.text for o in objs if "none of this patient's own features" in o.text]
+    assert len(flagged) == 1 and flagged[0].startswith("DRUGX")
+    cohort, objs = inv.check_therapies(hyps, lk, circuits, [], items, "", "Patient", sections=sections)
+    assert next(h for h in cohort if h["drug"] == "DRUGX")["improves"] == ["D01"]  # a cohort: no patient items to name
+    assert not [o for o in objs if "own features" in o.text]

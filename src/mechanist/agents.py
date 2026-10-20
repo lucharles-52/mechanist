@@ -1144,9 +1144,11 @@ Rules:
 - Name only drugs listed in THERAPY TARGETS or returned by a gene_drugs call you make, with the gene they were
   listed for (the receptor, when the drug was found through a ligand's receptor). Never state a clinical stage, dose or approval: the code adds them from the lookup.
 - The drug must oppose the step it acts on (an inhibitor or antagonist of an activating step). Say which edge it breaks.
-- Say which circuits it acts on, which items it should improve (for an index patient the patient's own P ids; a
-  candidate disease's D items only show a similarity, so never list them as improved), which circuits it should fail under
-  (the drug's step is absent from them), and which untested M ids it depends on (test those first).
+- Say which circuits it acts on, which features it should improve (for an index patient at least one of the patient's
+  own P ids; a candidate disease's D features only show a similarity), which circuits it should fail under
+  (the drug's step is absent from them), and which untested M ids it depends on (test those first). A treatment
+  response or a difference between candidates is evidence for choosing the drug: cite it in the rationale, not as a
+  feature improved.
 - For each drug say how sure it is to break the circuits if they are right, and how much it depends on one particular
   step being right. Drugs differ in breadth: CELL-TYPE TARGETS lists the cell types the circuits use, with their markers
   in this data and the drugs acting on them. Lay out the range of options; a clinician weighs certainty of effect

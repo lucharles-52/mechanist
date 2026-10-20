@@ -1878,7 +1878,8 @@ class Runner:
                 hyps, objs = inv.check_therapies(ans.get("hypotheses") or [], lookups(), circs, ms,
                                                  {i for i, _s, _t in items}, therapy_texts, self.cfg.disease, cell_tg,
                                                  design=self.cfg.design,
-                                                 reported={i: (sec, t) for i, sec, t in items if i in reported})
+                                                 reported={i: (sec, t) for i, sec, t in items if i in reported},
+                                                 sections={i: sec for i, sec, _t in items})
                 via = {x["gene"]: x["via"] for t in targets for x in t.get("lookups") or [] if x["via"] != "named"}
                 for h in hyps:
                     h["via"] = via.get(h["target"], "")
