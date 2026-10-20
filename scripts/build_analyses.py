@@ -66,6 +66,24 @@ def _norm(t: str) -> str:
     return re.sub(r"\s+", " ", t).strip()
 
 
+def _numbers(t: str) -> str:
+    """The text without the tools' verdicts ("[all Patient > all Healthy]", "Context: 185 of 452 sets ...", "; drivers
+    in ..."): two texts equal here have the same numbers, and differ only in what the code says about them."""
+    t = re.sub(r"\[[^\]]*\]", "", _norm(t))
+    t = re.sub(r"Context: [^.]*\.", "", t)
+    t = re.sub(r";? ?drivers in [^-|]*", "", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def status(recorded: str, again: str, ok: bool) -> str:
+    """same | verdict (same numbers; newer code words its verdict differently) | differs | failed."""
+    if not ok:
+        return "failed"
+    if _norm(again) == _norm(recorded):
+        return "same"
+    return "verdict" if _numbers(again) == _numbers(recorded) else "differs"
+
+
 def _clean(v):
     """JSON-safe: NaN and infinities become null."""
     if isinstance(v, float) and not math.isfinite(v):
@@ -97,8 +115,7 @@ def rerun(run: Path) -> list[dict]:
             again, ok = f"re-run failed: {exc}", False
         rows.append({"id": rid, "tool": x["tool"], "args": x.get("args") or {}, "cited_by": where.get(rid, []),
                      "recorded": x.get("summary") or "", "rerun": again, "data": _clean(data),
-                     "status": "same" if ok and _norm(again) == _norm(x.get("summary")) else
-                               "differs" if ok else "failed"})
+                     "status": status(x.get("summary") or "", again, ok)})
     return rows
 
 
@@ -401,6 +418,7 @@ const OK = `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5l2.6 2.5L
 function fig(id, where){
   const a = D.analyses[id], f = a.fig;
   const st = a.status === "same" ? `<span class="ok" title="Run again by code: the same result">${OK}same on re-run</span>`
+    : a.status === "verdict" ? `<span class="ok" title="Run again by code: every number the same; the current code words its verdict differently (for example a per-sample comparison the run's code could not make)">${OK}same numbers, newer verdict</span>`
     : `<span class="ok bad">${a.status === "differs" ? "differs on re-run" : "re-run failed"}</span>`;
   let body = "";
   if (f.kind === "strips") body = (f.genes ? `<p class="gl">${esc(f.genes.join(", "))}</p>` : "") +
@@ -446,7 +464,7 @@ function render(){
 }
 $("#legend").innerHTML = D.groups.map(([g, ss]) => `<span><i style="background:${GCOL[g]}"></i>${esc(g)} <small style="color:var(--muted)">${esc(ss.map(SH).join(", "))}</small></span>`).join("");
 const all = Object.values(D.analyses), n = s => all.filter(a => a.status === s).length;
-$("#tally").innerHTML = `<div><b>${all.length}</b>queries on the data</div><div><b>${all.filter(a => a.cited_by.length).length}</b>that a step, experiment or drug rests on</div><div><b>${n("same")}</b>the same when run again</div><div><b>${n("differs") + n("failed")}</b>different or failed</div>`;
+$("#tally").innerHTML = `<div><b>${all.length}</b>queries on the data</div><div><b>${all.filter(a => a.cited_by.length).length}</b>that a step, experiment or drug rests on</div><div><b>${n("same")}</b>the same when run again</div>${n("verdict") ? `<div><b>${n("verdict")}</b>same numbers, newer verdict</div>` : ""}<div><b>${n("differs") + n("failed")}</b>different or failed</div>`;
 $("#c").innerHTML = `<option value="">Every circuit</option>` + D.circuits.map(c => `<option value="${c.rank}">${c.rank === 1 ? "Lead circuit" : "Circuit " + c.rank}</option>`).join("");
 let tmr; $("#q").addEventListener("input", () => { clearTimeout(tmr); tmr = setTimeout(render, 150); });
 $("#c").addEventListener("change", render); $("#d").addEventListener("change", render); render();
@@ -461,6 +479,8 @@ def main() -> None:
     saved = a.run / "site" / "analyses.json"
     if a.page_only:
         rows = json.loads(saved.read_text())
+        for r in rows:  # statuses as this code reads them (a saved re-run may predate the verdict class)
+            r["status"] = status(r.get("recorded") or "", r.get("rerun") or "", r.get("status") != "failed")
         res = load_run(a.run)[1]  # a re-run saved before figures existed: the run's own records hold the same data
         for r in rows:
             if "data" not in r:
@@ -470,7 +490,7 @@ def main() -> None:
         saved.parent.mkdir(exist_ok=True)
         saved.write_text(json.dumps(rows, ensure_ascii=False, indent=1))
     out = write_page(a.run, rows)
-    tally = {s: sum(r["status"] == s for r in rows) for s in ("same", "differs", "failed")}
+    tally = {s: sum(r["status"] == s for r in rows) for s in ("same", "verdict", "differs", "failed")}
     print(f"{len(rows)} analyses: {tally}; wrote {out}")
 
 
