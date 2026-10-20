@@ -277,3 +277,17 @@ def test_the_submitters_question_reaches_every_stage(tmp_path):
     assert ctx.startswith("THE SUBMITTER'S QUESTION") and "TLS-associated B cells" in ctx
     assert not agents.build_context(Dataset(study="s", adapter="skinpipe", groups={}, files=[], review_status="reviewed"),
                                     [], {}).startswith("THE SUBMITTER")
+
+
+def test_the_whole_study_comparison_wins_over_a_deep_dive_that_sorts_first(tmp_path):
+    import yaml
+
+    from mechanist.adapters.skinpipe import _pick_comparison
+    comp = tmp_path / "Results" / "comparisons"
+    for cid, route, extra in (("deep_dive_x__a_vs_b", "focused_compartment", {"compartment": "X"}), ("global__a_vs_b__1", "all_cells", {})):
+        pair = comp / cid / "a_vs_b"
+        (pair / route).mkdir(parents=True)
+        (pair / "run_manifest.yaml").write_text(yaml.safe_dump({"case": "A", "reference": "B", "comparison_id": cid,
+                                                                "routes": [{"route": route}], **extra}))
+    pair, _d, r = _pick_comparison(tmp_path, "A", "B", None, None)
+    assert pair.parent.name == "global__a_vs_b__1" and r["route"] == "all_cells"

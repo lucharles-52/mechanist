@@ -61,6 +61,8 @@ def cited(ctx: dict) -> dict[str, list[str]]:
 
 def _norm(t: str) -> str:
     t = re.sub(r"^\(same call as R\d+; same result\) ", "", str(t or ""))
+    # a run's frozen code copy (runs/slurm/code_claude_<run>/) and the main folder print different paths
+    t = re.sub(r"/runs/slurm/code_claude_[^/\s]+/", "/", t)
     return re.sub(r"\s+", " ", t).strip()
 
 
