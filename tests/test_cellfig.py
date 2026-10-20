@@ -41,5 +41,5 @@ def test_known_cells_draw_as_before():
 
 def test_ring_labels_are_short():
     assert cellfig._label("A rather long description of a stromal programme; with detail") == "A rather long description…"
-    assert cellfig._label("HAS9/XYZ1 gain and LMN2 loss") == "HAS9/XYZ1 gain…"
+    assert cellfig._label("HAS9/XYZ1 gain and SERPX1/PTGX2/FMDX3 loss") == "HAS9/XYZ1 gain…"
     assert cellfig._label("short thing (with a note)") == "Short thing"
