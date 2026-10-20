@@ -49,6 +49,9 @@ ICON_OF = {"neutrophil": ("activated_neutrophil", r"activat|primed|inflammatory"
            "macrophage": ("activated_macrophage", r"activat|inflammatory|recruited|sender")}
 OUTCOME_RE = re.compile(r"ulcer|undermin|matrix|tissue|destruct|damage|necro|pathergy|wound|re-?epitheli|granulation|"
                         r"lesion|burden|progress|disease|scar|border|loss of|breakdown|injury|blister|detach", re.IGNORECASE)
+# words that make an end a cell even when no family above names it (drawn as a generic cell)
+CELLISH_RE = re.compile(r"\bcells?\b|\bclon(e|es|al)\b|lineage|population|subset|subtype|\w{3,}cytes?\b|\w{3,}blasts?\b|"
+                        r"\btumou?r\b", re.IGNORECASE)
 GENE_RE = re.compile(r"(?<![\w-])(?:IL-?\d+[αβA-F]?|TNF-?α|IFN-?[γαβ]|TGF-?β\d?|NF-[κk]B|[A-Z][A-Z0-9]{1,}(?:-[A-Z0-9]+)*)"
                      r"(?![\w])")
 MARKER_RE = re.compile(r"CD\d+[A-Z]?|HLA-?\w*|MHC-?\w*")  # cell markers name the cell, not the mediator
@@ -129,11 +132,37 @@ def target_cells(text: str) -> list[str]:
     return cs
 
 
+def _label(text: str, words: int = 5, chars: int = 34) -> str:
+    """A ring name for an end no cell family covers: outside brackets, up to the first clause break, a few words."""
+    t = re.sub(r"\s+", " ", _outside(text)).strip(" .;,:")
+    head = re.split(r"[;,:]\s| [–—-] ", t, maxsplit=1)[0]
+    if len(head.split()) >= 2:
+        t = head
+    w = t.split(" ")
+    out = " ".join(w[:words])
+    while len(out) > chars and " " in out:
+        out = out.rsplit(" ", 1)[0]
+    if len(out) > chars:
+        out = out[: chars - 1]
+    if out != t:
+        out = re.sub(r"(\s+(and|or|of|the|in|to|with|by|vs|per|a|an|from|on|at))+$", "", out, flags=re.IGNORECASE) + "…"
+    return out[:1].upper() + out[1:]
+
+
+def _words(text: str) -> list[str]:
+    return re.sub(r"[^0-9a-zα-ω]+", " ", _outside(text).lower()).split()
+
+
 def build_graph(edges: list[dict]) -> dict:
-    """edges: [{source, target, via, status}] -> {"ring": [node], "centre": [str], "arrows": [arrow]}."""
+    """edges: [{source, target, via, status}] -> {"ring": [node], "centre": [str], "arrows": [arrow], "steps": [str]}.
+
+    Every step is shown: as an arrow, as genes under a cell (a cell's product or state), or as a disease feature in the
+    centre ("steps" says which, per edge). An end that names no known cell family and is no disease feature is its own
+    ring node, named from its text; ends that name the same thing (one's words lead the other's) share the node."""
     nodes: dict[str, dict] = {}
     centre: list[str] = []
     makes: dict[str, set[str]] = {}
+    shown: list[str] = [""] * len(edges)
 
     def node(key: str, mention: str = "", trigger: bool = False) -> str:
         if key not in nodes:
@@ -142,6 +171,19 @@ def build_graph(edges: list[dict]) -> dict:
         if mention:
             nodes[key]["mentions"].append(mention)
         return key
+
+    def named(text: str, trigger: bool = False) -> str:
+        """The ring node for an end no cell family covers; reused when another end names the same thing."""
+        w = _words(text)
+        for k, nd in nodes.items():
+            if k.startswith("trigger:") and w and (w[: len(nd["words"])] == nd["words"]
+                                                    or nd["words"][: len(w)] == w):
+                if not trigger:
+                    nd["trigger"] = False
+                return node(k, text)
+        k = node("trigger:" + _label(text), text, trigger=trigger)
+        nodes[k]["words"] = w
+        return k
 
     def add_sub(key: str, genes: list[str]) -> None:
         for g in genes:
@@ -154,61 +196,77 @@ def build_graph(edges: list[dict]) -> dict:
             centre.append(t)
         return t
 
-    for e in edges:  # pass 1: who makes what, and cell states
+    for i, e in enumerate(edges):  # pass 1: who makes what, and cell states
         s, t = cells_in(e.get("source", "")), target_cells(e.get("target", ""))
-        if s and not t and not OUTCOME_RE.search(e.get("target", "")):
-            for g in genes_in(e.get("target", ""), 8):
+        tg = genes_in(e.get("target", ""), 8)
+        if s and not t and not OUTCOME_RE.search(e.get("target", "")) and tg:
+            for g in tg:
                 makes.setdefault(norm(g), set()).update(s)
             for k in s:
                 add_sub(node(k, e.get("source", "")), genes_in(e.get("target", ""), 3))
+            shown[i] = "cell"
         elif s and t and set(s) == set(t):
             for k in s:
                 add_sub(node(k, e.get("source", "")), genes_in(e.get("target", ""), 3))
+                node(k, e.get("target", ""))
+            shown[i] = "cell"
     arrows: dict[tuple[str, str], dict] = {}
-    for e in edges:  # pass 2: arrows
+    for i, e in enumerate(edges):  # pass 2: arrows
+        if shown[i]:
+            continue
         src, tgt, via = e.get("source", ""), e.get("target", ""), e.get("via", "")
         status = e.get("status") if e.get("status") in STYLE else "speculative"
         s, t = cells_in(src), target_cells(tgt)
         label = (genes_in(via, 2) or genes_in(_outside(src), 2)) if s else []
+        if not t and OUTCOME_RE.search(tgt):
+            t = ["centre:" + outcome(tgt)]
         if not s:
             mol = genes_in(src)
             s = sorted({k for g in mol for k in makes.get(norm(g), ())})
             label = mol[:3] or genes_in(via, 2)
             if not s:
-                if OUTCOME_RE.search(src) and not mol:
-                    continue  # an outcome feeding an outcome: shown by the centre list
-                s = [node("trigger:" + _short(src, 4), src, trigger=True)]
+                if OUTCOME_RE.search(src) and not mol and t and t[0].startswith("centre:"):
+                    shown[i] = "centre"  # an outcome feeding an outcome: shown by the centre list
+                    continue
+                s = [named(src, trigger=True)]
         for k in s:
-            node(k, src, trigger=k.startswith("trigger:"))
+            node(k, src)
         if not t:
-            if OUTCOME_RE.search(tgt):
-                t = ["centre:" + outcome(tgt)]
-            else:
-                continue  # production: already written under the cell
+            t = [named(tgt)]
         else:
             for k in t:
-                node(k, tgt)
-        for a in s:
-            for b in t:
-                if a == b:
-                    continue
-                key = (a, b)
-                arr = arrows.setdefault(key, {"from": a, "to": b, "labels": [], "status": status, "notes": []})
-                for g in label or ([_short(via, 3)] if via else []):
-                    if g and g not in arr["labels"] and len(arr["labels"]) < 3:
-                        arr["labels"].append(g)
-                if STRENGTH[status] > STRENGTH[arr["status"]]:
-                    arr["status"] = status
-                arr["notes"].append(f"{src} → {tgt}" + (f" ({via})" if via else ""))
+                if not k.startswith("centre:"):
+                    node(k, tgt)
+        pairs = [(a, b) for a in s for b in t if a != b]
+        if not pairs:  # a cell acting on itself: a state of that cell
+            for k in s:
+                add_sub(k, genes_in(tgt, 3) or label)
+            shown[i] = "cell"
+            continue
+        for a, b in pairs:
+            arr = arrows.setdefault((a, b), {"from": a, "to": b, "labels": [], "status": status, "notes": [],
+                                             "steps": []})
+            for g in label or ([_short(via, 3)] if via else []):
+                if g and g not in arr["labels"] and len(arr["labels"]) < 3:
+                    arr["labels"].append(g)
+            if STRENGTH[status] > STRENGTH[arr["status"]]:
+                arr["status"] = status
+            arr["notes"].append(f"{src} → {tgt}" + (f" ({via})" if via else ""))
+            if i + 1 not in arr["steps"]:
+                arr["steps"].append(i + 1)
+        shown[i] = "arrow"
     used = {a["from"] for a in arrows.values()} | {a["to"] for a in arrows.values()}
     ring = [n for k, n in nodes.items() if k in used or n["sub"]]
     for n in ring:
+        n.pop("words", None)
         n["icon"] = icon_key(n["id"], " ".join(n["mentions"]))
-    return {"ring": ring, "centre": centre, "arrows": list(arrows.values())}
+    return {"ring": ring, "centre": centre, "arrows": list(arrows.values()), "steps": shown}
 
 
 def icon_key(family: str, mentions: str = "") -> str:
     if family.startswith("trigger:"):
+        if CELLISH_RE.search(family.split(":", 1)[1]):
+            return "cell"  # a cell no family covers: the generic cell, under its own name
         return "cytokines" if re.search(r"systemic|serum|circulat|unmeasured|signal", family, re.IGNORECASE) else ""
     alt = ICON_OF.get(family)
     if alt and re.search(alt[1], mentions, re.IGNORECASE) and (ASSETS / f"{alt[0]}.png").exists():
@@ -216,12 +274,22 @@ def icon_key(family: str, mentions: str = "") -> str:
     return family if (ASSETS / f"{family}.png").exists() else ""
 
 
+# the generic cell (drawn here, not a BioArt icon): membrane, cytoplasm and nucleus in the page's own colours
+GENERIC_CELL = ('<symbol id="bio-cell" viewBox="0 0 100 100"><ellipse cx="50" cy="52" rx="38" ry="33" '
+                'fill="var(--accent-soft)" stroke="var(--ink-2)" stroke-width="3"/><ellipse cx="57" cy="47" rx="14" '
+                'ry="12" fill="var(--surface)" stroke="var(--ink-2)" stroke-width="2.5"/><circle cx="60" cy="45" r="4" '
+                'fill="var(--ink-2)"/><circle cx="32" cy="62" r="3" fill="var(--ink-2)" opacity=".5"/><circle cx="40" '
+                'cy="72" r="2.5" fill="var(--ink-2)" opacity=".5"/></symbol>')
+
+
 def icon_defs(keys) -> str:
     """The page's icon sprite: one hidden SVG with a symbol per icon; figures point at #bio-<key>."""
     out = []
     for k in sorted({k for k in keys if k}):
         p = ASSETS / f"{k}.png"
-        if p.exists():
+        if k == "cell":
+            out.append(GENERIC_CELL)
+        elif p.exists():
             uri = "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
             out.append(f'<symbol id="bio-{k}" viewBox="0 0 100 100"><image href="{uri}" x="0" y="0" width="100" '
                        f'height="100" preserveAspectRatio="xMidYMid meet"/></symbol>')
@@ -299,7 +367,26 @@ def figure(graph: dict, fid: str, title: str = "", labels: bool = True) -> str:
 
     pairs = {(a["from"], a["to"]) for a in arrows}
     # half-width of each cell's footprint: its icon, or its name and the genes under it when wider
-    namew = {nd["id"]: max(46, 4.9 * len(nd["label"]) + 8, 3.9 * len(", ".join(nd["sub"][:4])) + 6) for nd in ring}
+    names = {nd["id"]: _wrap(nd["label"], 20)[:2] or [""] for nd in ring}  # a long name under an icon takes two lines
+    namew = {nd["id"]: max(46, 4.9 * max(len(x_) for x_ in names[nd["id"]]) + 8, 3.9 * len(", ".join(nd["sub"][:4])) + 6)
+             for nd in ring}
+    # what each cell covers, for placing arrow labels: (half-width, top, bottom) around its seat
+    foot = {}
+    for nd in ring:
+        if nd.get("icon"):
+            foot[nd["id"]] = (namew[nd["id"]], -54, 86 + 18 * (len(names[nd["id"]]) - 1))
+        else:
+            box = _wrap(nd["label"], 22)[:2] or [""]
+            foot[nd["id"]] = (min(170, 16 + 7.2 * max(len(x_) for x_ in box)) / 2, -24 - 8 * len(box), 16 + 8 * len(box))
+    def edge(k: str, ux: float, uy: float, r: float) -> float:
+        """How far from a cell's seat an arrow starts or stops: r for an icon, the border (plus a gap) for a named box."""
+        hw, top, bot = foot[k]
+        if r and k in nodes_by and not nodes_by[k].get("icon"):
+            hh = (bot - top) / 2 - 12
+            return min(hw / abs(ux) if ux else 1e9, hh / abs(uy) if uy else 1e9) + 8
+        return r
+
+    nodes_by = {nd["id"]: nd for nd in ring}
     label_svg = []
     placed: list[tuple[float, float, float]] = []
     for a in arrows:
@@ -309,8 +396,9 @@ def figure(graph: dict, fid: str, title: str = "", labels: bool = True) -> str:
         dx, dy = x2 - x1, y2 - y1
         d = math.hypot(dx, dy) or 1
         ux, uy = dx / d, dy / d
-        r1 = 56
-        r2 = (min(bw / 2, bh / 2) + 14 if centre else 30) if a["to"].startswith("centre:") else 58
+        r1 = edge(a["from"], ux, uy, 56)
+        r2 = ((min(bw / 2, bh / 2) + 14 if centre else 30) if a["to"].startswith("centre:")
+              else edge(a["to"], ux, uy, 58))
         sx, sy, ex, ey = x1 + ux * r1, y1 + uy * r1, x2 - ux * r2, y2 - uy * r2
         hx, hy = (sx + ex) / 2, (sy + ey) / 2
         ox, oy = hx - cx, hy - cy
@@ -352,7 +440,8 @@ def figure(graph: dict, fid: str, title: str = "", labels: bool = True) -> str:
                         (1 - t) ** 2 * sy + 2 * (1 - t) * t * my + t * t * ey)
 
             def clash(x: float, y: float, half=half) -> int:
-                n_ = sum(1 for k_, (px, py) in pos.items() if abs(x - px) < half + namew[k_] and -54 < y - py < 86)
+                n_ = sum(1 for k_, (px, py) in pos.items()
+                         if abs(x - px) < half + foot[k_][0] and foot[k_][1] < y - py < foot[k_][2])
                 if centre and abs(x - cx) < bw / 2 + half and abs(y - cy) < bh / 2 + 12:
                     n_ += 1
                 return n_ + sum(1 for qx, qy, qh in placed if abs(x - qx) < half + qh and abs(y - qy) < 18)
@@ -364,7 +453,7 @@ def figure(graph: dict, fid: str, title: str = "", labels: bool = True) -> str:
                 x_, y_ = at(t)
                 if gap == 1:
                     x_, y_ = x_ + ox * 12 * (1 if off > 0 else -1), y_ + oy * 12 * (1 if off > 0 else -1)
-                for j, sh in enumerate((0, 16, -16)):
+                for j, sh in enumerate((0, 16, -16, 30, -30, 44, -44)):
                     cands.append((clash(x_ + nx_ * sh, y_ + ny_ * sh), j, k, x_ + nx_ * sh, y_ + ny_ * sh))
             _, _, _, lx, ly = min(cands)
             placed.append((lx, ly, half))
@@ -386,8 +475,10 @@ def figure(graph: dict, fid: str, title: str = "", labels: bool = True) -> str:
                 s.append(f'<text x="{x:.1f}" y="{y - 2 - 8 * (nl - 1) + 16 * k:.1f}" font-size="12.5" font-weight="650" '
                          f'text-anchor="middle" fill="var(--ink)">{esc(ln)}</text>')
             continue
-        s.append(f'<text x="{x:.1f}" y="{ty:.1f}" font-size="16" font-weight="700" text-anchor="middle" fill="var(--ink)" '
-                 f'stroke="var(--surface)" stroke-width="4" paint-order="stroke">{esc(nd["label"])}</text>')
+        for k, ln in enumerate(names[nd["id"]]):
+            s.append(f'<text x="{x:.1f}" y="{ty + 18 * k:.1f}" font-size="16" font-weight="700" text-anchor="middle" '
+                     f'fill="var(--ink)" stroke="var(--surface)" stroke-width="4" paint-order="stroke">{esc(ln)}</text>')
+        ty += 18 * (len(names[nd["id"]]) - 1)
         if labels and nd["sub"]:
             s.append(f'<text x="{x:.1f}" y="{ty + 17:.1f}" font-size="13" text-anchor="middle" fill="var(--ink-2)" '
                      f'stroke="var(--surface)" stroke-width="4" paint-order="stroke">{esc(", ".join(nd["sub"][:4]))}</text>')
