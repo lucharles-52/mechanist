@@ -1287,9 +1287,18 @@ def cell_targets(circuits: list[dict], markers: dict[str, list[str]], cells_of) 
     return out
 
 
+EVIDENCE_SECTIONS = ("therapy response", "difference from comparators")
+
+
+def is_evidence(section: str) -> bool:
+    """An item section (possibly "Sweet: therapy response") that is literature behind a drug, not a feature."""
+    return section.split(":")[-1].strip() in EVIDENCE_SECTIONS
+
+
 def check_therapies(hyps: list[dict], lookups: dict[str, dict], circuits: list[dict], ms: list[dict], items: set[str],
                     therapy_texts: str, disease: str, cell_tg: list[dict] | None = None, design: str = "cohort",
-                    reported: dict[str, tuple[str, str]] | None = None) -> tuple[list[dict], list[Objection]]:
+                    reported: dict[str, tuple[str, str]] | None = None,
+                    sections: dict[str, str] | None = None) -> tuple[list[dict], list[Objection]]:
     """A therapeutic hypothesis stands only on a lookup that ran: the drug must be listed for that target. Its stage,
     action and evidence level come from the lookup and code, never from the model. A drug that does not block (an
     agonist, an activator) is flagged, since the circuits' steps are activating."""
@@ -1321,6 +1330,10 @@ def check_therapies(hyps: list[dict], lookups: dict[str, dict], circuits: list[d
         seen_in = sorted({sec.split(":")[0].strip() for sec, t in (reported or {}).values()
                           if root and re.search(r"\b" + re.escape(root) + r"\b", t.lower())})
         improves = [i for i in h.get("improves") or [] if i in items]
+        # a treatment response or a comparison of the candidates is literature behind the choice, not a feature the
+        # drug improves: sorted out by the item's section (agents.PHENOTYPE_SECTIONS)
+        evidence = [i for i in improves if is_evidence((sections or {}).get(i, ""))]
+        improves = [i for i in improves if i not in evidence]
         if design == "index_patient":  # the patient's own features; a candidate disease's items are similarities
             similar = [i for i in improves if not i.startswith("P")]
             improves = [i for i in improves if i.startswith("P")]
@@ -1331,7 +1344,7 @@ def check_therapies(hyps: list[dict], lookups: dict[str, dict], circuits: list[d
         out.append({"drug": d["drug"], "target": g, "stage": d.get("stage", ""), "actions": acts,
                     "mechanism": "; ".join(a.get("mechanism", "") for a in (d.get("actions") or [])[:2]),
                     "indications": (d.get("indications") or [])[:5], "level": level, "reported_in": seen_in,
-                    "similar": similar,
+                    "similar": similar, "evidence": evidence,
                     "blocks": blocks, "circuits": cs, "support": round(sum(sup.get(r, 0) for r in cs), 3),
                     "breaks": str(h.get("breaks") or ""), "improves": improves,
                     "fails_under": [r for r in (int(x) for x in h.get("fails_under") or [] if str(x).isdigit())
@@ -1343,6 +1356,10 @@ def check_therapies(hyps: list[dict], lookups: dict[str, dict], circuits: list[d
                     "warnings": warn, "boxed": any("black box" in w["type"].lower() for w in warn),
                     "withdrawn": any(w["type"].lower().startswith("withdrawn") and "least one" not in w["type"].lower()
                                      for w in warn)})
+        if design == "index_patient" and not improves and any(i.startswith("P") for i in items):
+            objs.append(Objection(target="therapy", kind="unsupported_step", source="verifier",
+                                  text=f"{d['drug']} names none of this patient's own features (P items) it should "
+                                       f"improve. Name the P items it acts on through the circuit, or say why none."))
         if not blocks:
             objs.append(Objection(target="therapy", kind="unsupported_step", source="verifier",
                                   text=f"{d['drug']} acts on {g} as {', '.join(acts) or 'an unknown action'}, not as a "
